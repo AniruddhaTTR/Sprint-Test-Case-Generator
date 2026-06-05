@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sprint Test Case Generator</title>
+<style>
+:root{
+  --bg:#0b1020;--bg2:#11172e;--ac:#6c8cff;--ac2:#8a5cff;
+  --text:#e7ecff;--muted:#98a2c7;--good:#2ecc71;--warn:#f1c40f;--bad:#e74c3c;
+  --card:rgba(255,255,255,.06);--border:rgba(255,255,255,.10);
+  --shadow:0 20px 60px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:"Inter","Segoe UI",system-ui,sans-serif;color:var(--text);
+  background:radial-gradient(1200px 800px at 10% -10%,#1d275a,transparent 60%),
+             radial-gradient(900px 600px at 110% 10%,#3a1b6e,transparent 55%),
+             linear-gradient(180deg,var(--bg),var(--bg2));overflow-x:hidden}
+
+/* AUTH */
+#auth-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;padding:40px 24px;
+  background:radial-gradient(1100px 700px at 25% 15%,#1f2750,#0a0f24 70%)}
+.logo-sq{width:70px;height:70px;border-radius:16px;margin-bottom:22px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  box-shadow:0 12px 40px rgba(108,140,255,.5)}
+#auth-wrap h1{font-size:34px;letter-spacing:-.5px;margin-bottom:8px;text-align:center}
+.auth-sub{color:var(--muted);font-size:15px;margin-bottom:4px;text-align:center}
+.auth-org{color:var(--muted);font-size:13px;margin-bottom:34px;text-align:center}
+.auth-card{width:100%;max-width:480px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);border-radius:16px;padding:28px 30px;box-shadow:var(--shadow)}
+.auth-card .step{font-size:11px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:1.6px;margin-bottom:12px}
+.auth-card label{font-size:13px;font-weight:600;display:block;margin-bottom:7px}
+.auth-card input{width:100%;padding:12px 14px;font-family:Consolas,monospace;font-size:14px;
+  background:rgba(0,0,0,.45);color:var(--text);border:1px solid var(--border);border-radius:9px;outline:none}
+.auth-card input:focus{border-color:var(--ac)}
+.auth-hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6}
+.auth-hint a{color:var(--ac)}
+#auth-msg{margin-top:12px;font-size:13px;min-height:18px;text-align:center;line-height:1.5}
+
+/* APP */
+.app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:58px 1fr;min-height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;background:rgba(11,16,32,.8);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;gap:8px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;white-space:nowrap}
+.brand .logo{width:28px;height:28px;border-radius:7px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));flex-shrink:0}
+.top-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.team-bar{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:3px}
+.t-tab{cursor:pointer;padding:5px 12px;border-radius:7px;font-size:13px;font-weight:600;
+  color:var(--muted);border:1px solid transparent;background:transparent;
+  display:flex;align-items:center;gap:5px;transition:.15s}
+.t-tab:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.t-tab.active{background:linear-gradient(135deg,rgba(108,140,255,.25),rgba(138,92,255,.25));
+  color:var(--text);border-color:rgba(108,140,255,.45)}
+.tdot{width:7px;height:7px;border-radius:50%;background:#3a4470}
+.tdot.on{background:var(--good);box-shadow:0 0 5px rgba(46,204,113,.6)}
+.search{display:flex;align-items:center;gap:6px;background:var(--card);
+  border:1px solid var(--border);padding:6px 11px;border-radius:10px;min-width:200px}
+.search input{flex:1;background:transparent;border:0;outline:none;color:var(--text);font-size:13px}
+.search input::placeholder{color:var(--muted)}
+.btn{border:0;cursor:pointer;font-weight:600;font-size:13px;padding:8px 14px;border-radius:10px;transition:.15s;white-space:nowrap}
+.bp{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;box-shadow:0 7px 20px rgba(108,140,255,.35)}
+.bp:hover{transform:translateY(-1px)}
+.bp:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.bg{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.bg:hover{background:rgba(255,255,255,.10)}
+.bg:disabled{opacity:.5;cursor:not-allowed}
+
+aside{border-right:1px solid var(--border);background:rgba(11,16,32,.5);padding:14px 10px}
+.ns{font-size:10px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);padding:12px 12px 4px}
+.nav a{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:8px;
+  color:var(--text);text-decoration:none;font-size:13px}
+.nav a:hover{background:var(--card)}
+.nav a.active{background:linear-gradient(135deg,rgba(108,140,255,.18),rgba(138,92,255,.18));border:1px solid var(--border)}
+.nd{width:8px;height:8px;border-radius:50%;background:var(--ac)}
+
+main{padding:20px;display:grid;gap:16px;grid-template-columns:repeat(12,1fr);align-content:start}
+.stat{grid-column:span 3;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.stat .l{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.stat .v{font-size:28px;font-weight:700;margin-top:6px;line-height:1.1}
+.stat .t{font-size:12px;margin-top:4px;color:var(--good)}
+.stat .t.ok{color:var(--muted)}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+.panel h2{margin:0 0 12px;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+.sub{color:var(--muted);font-size:12px}
+.c8{grid-column:span 8}.c4{grid-column:span 4}.c12{grid-column:span 12}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+tr:last-child td{border-bottom:0}
+tbody tr{cursor:pointer;transition:.1s}
+tbody tr:hover td{background:rgba(255,255,255,.03)}
+
+.pill{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;
+  font-size:12px;font-weight:500;background:rgba(255,255,255,.06);border:1px solid var(--border)}
+.pill.good{color:#c2f5d3;background:rgba(46,204,113,.12);border-color:rgba(46,204,113,.35)}
+.pill.warn{color:#fff1b0;background:rgba(241,196,15,.12);border-color:rgba(241,196,15,.35)}
+.pill.res{color:#c2f5d3;background:rgba(46,204,113,.08);border-color:rgba(46,204,113,.2)}
+.pill.dim{color:var(--muted)}
+
+.act ul{padding:0;margin:0}
+.act li{list-style:none;padding:9px 0;border-bottom:1px dashed var(--border);display:flex;gap:11px;align-items:flex-start}
+.act li:last-child{border-bottom:0}
+.act .ic{width:26px;height:26px;border-radius:8px;flex:0 0 26px;
+  background:linear-gradient(135deg,rgba(108,140,255,.4),rgba(138,92,255,.4));display:grid;place-items:center;font-size:11px}
+.act .t{font-weight:600;font-size:13px}.act .m{color:var(--muted);font-size:12px;margin-top:2px}
+
+footer{grid-column:1/-1;padding:12px 20px;color:var(--muted);border-top:1px solid var(--border);font-size:11px;display:flex;justify-content:space-between}
+
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.2);
+  border-top-color:var(--ac);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+.ldrow td{text-align:center;padding:30px;color:var(--muted)}
+
+button[data-del]{display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;padding:0;border:1px solid rgba(231,76,60,.5);border-radius:5px;
+  background:rgba(231,76,60,.08);color:#ff8f80;cursor:pointer;font-size:12px;font-weight:700}
+button[data-del]:hover{background:rgba(231,76,60,.22)}
+
+.moverlay{display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(5,8,18,.78);backdrop-filter:blur(6px);padding:36px 20px;overflow:auto}
+.moverlay.open{display:block}
+.mbox{max-width:880px;margin:0 auto;background:linear-gradient(180deg,#141a35,#0e1429);
+  border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.mhead{display:flex;justify-content:space-between;align-items:flex-start;padding:18px 22px;border-bottom:1px solid var(--border)}
+.mbody{padding:18px 22px}
+.mac{font-size:13px;background:rgba(0,0,0,.25);border:1px solid var(--border);
+  border-radius:8px;padding:11px;max-height:120px;overflow:auto;white-space:pre-wrap;line-height:1.6}
+.tc-card{border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:rgba(255,255,255,.03);margin-bottom:9px}
+.tc-card details{margin-top:7px}
+.tc-card summary{cursor:pointer;color:var(--muted);font-size:12px}
+.tc-card ol{margin:7px 0 0;padding-left:18px;font-size:13px}
+.tc-card li{margin-bottom:5px}
+.ts{margin-top:8px;font-size:12px;padding:5px 10px;border-radius:6px;display:none}
+.ts.ok{color:#a6f7c2;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3)}
+.ts.err{color:#ff8f80;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3)}
+
+#log{margin-top:12px;max-height:200px;overflow:auto;background:rgba(0,0,0,.35);
+  border:1px solid var(--border);border-radius:10px;padding:11px;font-size:12px;color:#cdd5f7;display:none;white-space:pre-wrap}
+#toast{position:fixed;top:70px;right:20px;z-index:500;display:none;max-width:420px;
+  background:rgba(11,16,32,.96);border:1px solid var(--border);
+  border-radius:10px;padding:10px 15px;box-shadow:var(--shadow);font-size:13px;line-height:1.5}
+
+@media(max-width:900px){.app{grid-template-columns:1fr}aside{display:none}.stat{grid-column:span 6}.c8,.c4{grid-column:span 12}}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-wrap">
+  <div class="logo-sq"></div>
+  <h1>Sprint Test Case Generator</h1>
+  <p class="auth-sub">Auto-generate ADO test cases from your sprint backlog</p>
+  <p class="auth-org">tr-tax / TaxProf</p>
+  <div class="auth-card">
+    <div class="step">Connect to Azure DevOps</div>
+    <label>Personal Access Token</label>
+    <input type="password" id="pat-in" placeholder="Paste your ADO PAT" autocomplete="off" spellcheck="false"/>
+    <div class="auth-hint">
+      Create at <a href="https://dev.azure.com/tr-tax/_usersSettings/tokens" target="_blank">dev.azure.com/tr-tax</a>.
+      Scope: <b>Work Items: Read &amp; Write</b>. Org: <b>tr-tax</b>.
+    </div>
+    <div id="auth-msg"></div>
+    <button class="btn bp" id="auth-btn" style="width:100%;margin-top:16px;padding:13px;font-size:15px">
+      Authenticate &amp; Continue &rarr;
+    </button>
+    <details style="margin-top:16px;color:var(--muted);font-size:12px;line-height:1.6">
+      <summary style="cursor:pointer;color:var(--text);font-weight:600">&#9658; Privacy &amp; security</summary>
+      <div style="margin-top:8px">Your PAT is stored only in your browser's <code>localStorage</code> and sent directly to Azure DevOps. It never goes to any third-party server.</div>
+    </details>
+  </div>
+  <div style="margin-top:16px;color:var(--muted);font-size:11px">Sprint Test Case Generator &middot; v2.0</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- APP -->
+<div class="app" id="app" style="display:none">
+  <header>
+    <div class="brand"><div class="logo"></div>Sprint Test Case Generator</div>
+    <div class="top-actions">
+      <div class="team-bar" id="team-bar"></div>
+      <div class="search"><span>&#128269;</span><input id="filter" placeholder="Filter stories..."/></div>
+      <button class="btn bg" id="btn-disc" style="display:flex;align-items:center;gap:6px">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 5px rgba(46,204,113,.6)"></span>Connected
+      </button>
+      <button class="btn bg" id="btn-sync">Sync from ADO</button>
+      <button class="btn bg" id="btn-refresh">Refresh</button>
+      <button class="btn bp" id="btn-gen-all">+ Generate All</button>
+    </div>
+  </header>
+
+  <aside>
+    <div class="ns">Workspace</div>
+    <nav class="nav" id="sidenav">
+      <a class="active" href="#" data-view="dashboard"><span class="nd"></span> Dashboard</a>
+      <a href="#" data-view="sprints"><span class="nd" style="background:#8a5cff"></span> Sprints</a>
+      <a href="#" data-view="testcases"><span class="nd" style="background:#2ecc71"></span> Test Cases</a>
+      <a href="#" data-view="errors"><span class="nd" style="background:#e74c3c"></span> Errors</a>
+    </nav>
+    <div class="ns">Integrations</div>
+    <nav class="nav">
+      <a href="https://dev.azure.com/tr-tax/TaxProf" target="_blank">Azure DevOps &#8599;</a>
+      <a href="https://console.anthropic.com" target="_blank">Claude API &#8599;</a>
+    </nav>
+  </aside>
+
+  <main>
+    <section class="stat"><div class="l">Active Sprint</div><div class="v" id="s-sprint" style="font-size:18px;line-height:1.2">—</div><div class="t ok" id="s-sprint-sub">Loading...</div></section>
+    <section class="stat"><div class="l">Stories Loaded</div><div class="v" id="s-stories">—</div><div class="t ok" id="s-stories-sub">&nbsp;</div></section>
+    <section class="stat"><div class="l">Test Cases Linked</div><div class="v" id="s-pushed">—</div><div class="t ok" id="s-pushed-sub">&nbsp;</div></section>
+    <section class="stat"><div class="l">Errors</div><div class="v" id="s-err">0</div><div class="t ok" id="s-err-sub">all clear</div></section>
+
+    <section class="panel c8">
+      <h2>Stories <span class="sub" id="tbl-sub">Loading...</span></h2>
+      <table>
+        <thead><tr><th>Story</th><th>State</th><th>Test Case</th><th>Status</th></tr></thead>
+        <tbody id="tbody"><tr class="ldrow"><td colspan="4"><span class="spin"></span>&nbsp;Loading...</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="panel c4 act">
+      <h2>Sprint Info <span class="sub" id="s-time"></span></h2>
+      <ul id="act-list"><li><div class="ic">&#9679;</div><div><div class="t">Connecting...</div><div class="m">Fetching live data from ADO</div></div></li></ul>
+    </section>
+
+    <section class="panel c12">
+      <h2>Quick Actions <span class="sub" id="cfg-sub"></span></h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn bp" id="btn-full">&#9654; Generate All (Claude)</button>
+        <button class="btn bg" id="btn-export">&#8681; Export JSON</button>
+      </div>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <!-- Story modal -->
+  <div id="modal" class="moverlay">
+    <div class="mbox">
+      <div class="mhead">
+        <div style="flex:1;min-width:0">
+          <div style="color:var(--muted);font-size:11px;letter-spacing:1.2px;text-transform:uppercase">User Story</div>
+          <div id="m-title" style="font-size:18px;font-weight:700;margin-top:4px"></div>
+          <div id="m-meta" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+        </div>
+        <button class="btn bg" id="m-close" style="margin-left:12px;flex-shrink:0">&times; Close</button>
+      </div>
+      <div class="mbody">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Acceptance Criteria <span style="color:var(--ac);font-size:10px;letter-spacing:.5px">(sent to Claude as-is)</span></div>
+        <div class="mac" id="m-ac"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin:16px 0 6px">
+          <h3 style="margin:0;font-size:14px">Test Cases</h3>
+          <span id="m-sub" class="sub"></span>
+          <div style="margin-left:auto;display:flex;gap:7px">
+            <button class="btn bg" id="m-regen" style="display:none">&#9889; Regenerate</button>
+            <button class="btn bp" id="m-push">
+              <span class="spin" style="display:none" id="m-spin"></span>
+              <span id="m-push-lbl">⬆ Push Test Cases to ADO</span>
+            </button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          One <b>Test Case</b> work item per story, titled <code>US-&lt;id&gt; || &lt;title&gt;</code>, linked via <i>Tested By</i>.
+        </div>
+        <div id="m-list" style="max-height:360px;overflow:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>&copy; 2026 Sprint Test Case Generator</span>
+    <span id="footer-txt">v2.0 &middot; Live ADO data</span>
+  </footer>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════
+const CFG = {
+  org:     'tr-tax',
+  project: 'TaxProf',
+  teams: [
+    { key:'surePrep-tcd-elite',     label:'Elite'     },
+    { key:'surePrep-tcd-knights',   label:'Knights'   },
+    { key:'surePrep-tcd-mavericks', label:'Mavericks' },
+  ],
+  claudeKey: '', // Optional: paste your Anthropic API key here
+};
+
+// ══════════════════════════════════════════════════════
+//  ADO API — calls dev.azure.com directly using the PAT
+//  Works from any origin (http, https, file://) because
+//  we use the Authorization header, not cookies.
+//  Note: ADO's CORS policy allows Basic-auth GET/PATCH
+//  from browser origins including null (file://).
+// ══════════════════════════════════════════════════════
+const PAT_KEY = 'sptcg.pat';
+let pat = '', curTeam = CFG.teams[0].key, curView = 'dashboard';
+const cache = {};
+let mStory = null, mGenerated = [];
+
+function authHeader(p) {
+  return 'Basic ' + btoa(':' + (p || pat));
+}
+
+async function adoGet(path) {
+  const url = `https://dev.azure.com/${path}`;
+  const r = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': authHeader(),
+      'Accept': 'application/json',
+      'X-TFS-FedAuthRedirect': 'Suppress',
+    },
+  });
+  if (!r.ok) {
+    const b = await r.json().catch(() => ({}));
+    throw new Error(b.message || `ADO ${r.status}: ${url}`);
+  }
+  return r.json();
+}
+
+async function adoPatch(path, body) {
+  const url = `https://dev.azure.com/${path}`;
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': authHeader(),
+      'Content-Type': 'application/json-patch+json',
+      'Accept': 'application/json',
+      'X-TFS-FedAuthRedirect': 'Suppress',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const b = await r.json().catch(() => ({}));
+    throw new Error(b.message || `ADO PATCH ${r.status}`);
+  }
+  return r.json();
+}
+
+// ══════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════
+const esc = s => String(s ?? '').replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const stripHtml = h => {
+  const d = document.createElement('div');
+  d.innerHTML = h;
+  return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+};
+
+function toast(msg, kind = 'info') {
+  const el = document.getElementById('toast');
+  el.innerHTML = esc(msg).replace(/\n/g, '<br>');
+  el.style.borderColor = kind==='error' ? 'rgba(231,76,60,.6)' : kind==='success' ? 'rgba(46,204,113,.6)' : 'var(--border)';
+  el.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.style.display = 'none', 6000);
+}
+
+function log(msg) {
+  const p = document.getElementById('log');
+  p.style.display = 'block'; p.textContent += msg + '\n'; p.scrollTop = p.scrollHeight;
+}
+
+function stCls(s) {
+  if (/closed|resolved/i.test(s)) return 'res';
+  if (/active/i.test(s)) return 'warn';
+  return 'dim';
+}
+
+// ══════════════════════════════════════════════════════
+//  DATA FETCHING
+// ══════════════════════════════════════════════════════
+async function fetchSprint(team) {
+  const d = await adoGet(`${CFG.org}/${CFG.project}/${encodeURIComponent(team)}/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1`);
+  if (!(d.value || []).length) throw new Error(`No current sprint for "${team}"`);
+  return d.value[0];
+}
+
+async function fetchSprintIds(team, iterId) {
+  const d = await adoGet(`${CFG.org}/${CFG.project}/${encodeURIComponent(team)}/_apis/work/teamsettings/iterations/${iterId}/workitems?api-version=7.1-preview.1`);
+  return [...new Set((d.workItemRelations || []).map(r => r.target?.id).filter(Boolean))];
+}
+
+async function hydrateStories(ids) {
+  if (!ids.length) return [];
+  const fields = ['System.Id','System.Title','System.WorkItemType',
+    'Microsoft.VSTS.Common.AcceptanceCriteria','System.Description',
+    'System.State','System.AssignedTo','System.IterationPath','System.AreaPath'].join(',');
+  const all = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const d = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems?ids=${ids.slice(i,i+200).join(',')}&fields=${fields}&api-version=7.1`);
+    all.push(...(d.value || []));
+  }
+  return all
+    .filter(w => w.fields['System.WorkItemType'] === 'User Story' && w.fields['System.State'] !== 'Removed')
+    .map(w => ({
+      id: w.id,
+      title: w.fields['System.Title'] || '',
+      ac: stripHtml(w.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || ''),
+      desc: stripHtml(w.fields['System.Description'] || ''),
+      state: w.fields['System.State'] || '',
+      assignedTo: w.fields['System.AssignedTo']?.displayName || 'Unassigned',
+      iterPath: w.fields['System.IterationPath'] || '',
+      areaPath: w.fields['System.AreaPath'] || '',
+      tcId: null,
+    }));
+}
+
+async function findTC(storyId) {
+  const d = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${storyId}?$expand=relations&api-version=7.1`);
+  const tcIds = (d.relations || [])
+    .filter(r => r.rel === 'Microsoft.VSTS.Common.TestedBy-Reverse' || r.rel === 'Microsoft.VSTS.Common.TestedBy-Forward')
+    .map(r => parseInt(r.url.split('/').pop(), 10)).filter(Number.isFinite);
+  if (!tcIds.length) return null;
+  const det = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems?ids=${tcIds.join(',')}&fields=System.Id,System.Title,System.WorkItemType&api-version=7.1`);
+  const tcs = (det.value || []).filter(w => w.fields['System.WorkItemType'] === 'Test Case');
+  const tok = `us-${storyId}`.toLowerCase();
+  return (tcs.find(w => (w.fields['System.Title'] || '').toLowerCase().startsWith(tok + ' ||'))
+       || tcs.find(w => (w.fields['System.Title'] || '').toLowerCase().includes(tok))
+       || tcs[0]) || null;
+}
+
+async function scanTCs(stories) {
+  let cur = 0;
+  const res = new Array(stories.length).fill(null);
+  const worker = async () => {
+    while (true) {
+      const i = cur++;
+      if (i >= stories.length) break;
+      try { const t = await findTC(stories[i].id); res[i] = t ? t.id : null; } catch { res[i] = null; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(5, stories.length) }, worker));
+  return stories.map((s, i) => ({ ...s, tcId: res[i] }));
+}
+
+async function loadTeam(key, force = false) {
+  if (cache[key] && !force) return cache[key];
+  const sprint = await fetchSprint(key);
+  const ids = await fetchSprintIds(key, sprint.id);
+  const raw = await hydrateStories(ids);
+  const stories = await scanTCs(raw);
+  cache[key] = { sprint, stories, loadedAt: new Date() };
+  return cache[key];
+}
+
+async function syncOne(storyId) {
+  const d = cache[curTeam]; if (!d) return;
+  const s = d.stories.find(x => String(x.id) === String(storyId)); if (!s) return;
+  try { const t = await findTC(s.id); s.tcId = t ? t.id : null; } catch {}
+}
+
+// ══════════════════════════════════════════════════════
+//  CREATE TEST CASE IN ADO
+//
+//  REFERENCE FORMAT (Image 2 benchmark):
+//  Each scenario = ONE step row in ADO.
+//
+//  ACTION column contains:
+//    [Scenario title]
+//    (blank line)
+//    Pre-Condition:
+//    1. [precondition line 1]
+//    2. [precondition line 2]
+//    ...
+//    (blank line)
+//    Steps:
+//    1. [step 1 action]
+//    2. [step 2 action]
+//    ...
+//
+//  EXPECTED RESULT column contains:
+//    1. [expected result 1]
+//    2. [expected result 2]
+//    ...
+// ══════════════════════════════════════════════════════
+function buildStepsXml(tcs) {
+  if (!tcs.length) return '';
+
+  // Encode plain text into ADO's rich-text parameterized string format.
+  // Each line → <P>line</P>. The whole block is then HTML-entity-escaped
+  // a second time because it is embedded inside an XML attribute value.
+  function encodeRichText(plainText) {
+    const lines = String(plainText || '').split(/\r?\n/);
+    const html = lines
+      .map(l => {
+        const esc = l
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&apos;');
+        return `<P>${esc || '&nbsp;'}</P>`;
+      })
+      .join('');
+    // Second-level escape: this goes into an XML attribute / element value
+    return html
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  const stepElements = tcs.map((tc, idx) => {
+    const stepId = idx + 2; // ADO step IDs start at 2
+
+    // ── Build ACTION text ──────────────────────────────────────────
+    // Line 1: scenario title (bold indicator via caps, no markup needed)
+    const actionLines = [];
+    actionLines.push(tc.title || `Scenario ${idx + 1}`);
+    actionLines.push(''); // blank line
+
+    // Pre-Condition block — split on ". " or newlines to get individual conditions
+    const preconditionText = tc.preconditions || '';
+    const preconditions = preconditionText
+      .split(/\n|(?<=\.)\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 2);
+
+    if (preconditions.length) {
+      actionLines.push('Pre-Condition:');
+      preconditions.forEach((p, i) => actionLines.push(`${i + 1}. ${p}`));
+    } else {
+      actionLines.push('Pre-Condition:');
+      actionLines.push('1. Log in with appropriate credentials and navigate to the relevant screen.');
+    }
+
+    actionLines.push(''); // blank line before Steps
+
+    // Steps block — use the step actions
+    const steps = tc.steps || [];
+    if (steps.length) {
+      actionLines.push('Steps:');
+      steps.forEach((s, i) => {
+        // Strip "Step N:" prefix if already present — we renumber cleanly
+        const actionText = (s.action || '').replace(/^Step\s*\d+:\s*/i, '').trim();
+        actionLines.push(`${i + 1}. ${actionText}`);
+      });
+    }
+
+    // ── Build EXPECTED RESULT text ─────────────────────────────────
+    const expectedLines = [];
+    if (steps.length) {
+      steps.forEach((s, i) => {
+        const exp = (s.expected || '').trim();
+        if (exp) expectedLines.push(`${i + 1}. ${exp}`);
+      });
+    }
+    if (!expectedLines.length) {
+      expectedLines.push('1. Feature behaves as described in the acceptance criteria.');
+    }
+
+    return (
+      `<step id="${stepId}" type="ValidateStep">` +
+      `<parameterizedString isformatted="true">${encodeRichText(actionLines.join('\n'))}</parameterizedString>` +
+      `<parameterizedString isformatted="true">${encodeRichText(expectedLines.join('\n'))}</parameterizedString>` +
+      `<description/></step>`
+    );
+  });
+
+  return `<steps id="0" last="${tcs.length + 1}">${stepElements.join('')}</steps>`;
+}
+
+async function createTC(story, tcs) {
+  const title = `US-${story.id} || ${story.title}`;
+  const xml = buildStepsXml(tcs);
+
+  // Build a rich description including preconditions from all TCs
+  const preconditions = [...new Set(tcs.map(tc => tc.preconditions).filter(Boolean))].join('\n');
+  const descriptions  = tcs.map(tc => `• ${tc.title}`).join('\n');
+  const description   = `Test scenarios for US-#${story.id}:\n${descriptions}${preconditions ? '\n\nPreconditions:\n' + preconditions : ''}\n\nAuto-generated by Sprint TC Generator.`;
+
+  const ops = [
+    { op:'add', path:'/fields/System.Title',       value: title },
+    { op:'add', path:'/fields/System.Description', value: description },
+    { op:'add', path:'/fields/Microsoft.VSTS.Common.Priority', value: tcs[0]?.priority || 2 },
+  ];
+  if (xml)           ops.push({ op:'add', path:'/fields/Microsoft.VSTS.TCM.Steps',     value: xml });
+  if (story.iterPath) ops.push({ op:'add', path:'/fields/System.IterationPath',          value: story.iterPath });
+  if (story.areaPath)  ops.push({ op:'add', path:'/fields/System.AreaPath',              value: story.areaPath });
+
+  const created = await adoPatch(`${CFG.org}/${CFG.project}/_apis/wit/workitems/$Test%20Case?api-version=7.1`, ops);
+  const tcId = created.id, tcRev = created.rev;
+
+  try {
+    await adoPatch(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${tcId}?api-version=7.1`, [
+      { op:'test', path:'/rev', value: tcRev },
+      { op:'add',  path:'/relations/-', value: {
+        rel: 'Microsoft.VSTS.Common.TestedBy-Forward',
+        url: `https://dev.azure.com/${CFG.org}/_apis/wit/workItems/${story.id}`,
+        attributes: { comment: 'Linked by Sprint TC Generator' },
+      }},
+    ]);
+  } catch (e) {
+    // Surface the link failure — do not swallow silently
+    throw new Error(`TC #${tcId} was created in ADO but the TestedBy link failed: ${e.message}. Open TC #${tcId} and add the link manually.`);
+  }
+  return tcId;
+}
+
+// ══════════════════════════════════════════════════════
+//  GENERATION ENGINE
+//  Priority order:
+//  1. Claude API (if CFG.claudeKey set) — full quality
+//  2. Built-in API (app's own key if configured) — full quality
+//  3. Smart AC Parser — real TCs from AC text, no key needed
+// ══════════════════════════════════════════════════════
+
+// Fetch Help Center articles for a story topic
+async function fetchHelpContext(storyTitle, apiKey) {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `Search https://www.thomsonreuters.com/en-us/help/sureprep for: "${storyTitle}". Summarize in 4-6 sentences: the exact feature behavior, UI interactions, validation rules, error messages, and edge cases documented in the Help Center. Be specific about field names, button labels, and system behavior.`,
+        }],
+      }),
+    });
+    if (!r.ok) return '';
+    const d = await r.json();
+    return (d.content || []).filter(c => c.type === 'text').map(c => c.text).join(' ').slice(0, 1500);
+  } catch { return ''; }
+}
+
+// Full Claude generation with Help Center context
+async function genWithClaude(story) {
+  const key = CFG.claudeKey;
+  if (!key) throw new Error('NO_KEY');
+
+  const helpContext = await fetchHelpContext(story.title, key);
+  return callClaudeForTCs(story, key, helpContext);
+}
+
+async function callClaudeForTCs(story, apiKey, helpContext) {
+  const acText = story.ac || '(No acceptance criteria provided)';
+
+  const system = `You are a senior QA engineer for SurePrep TaxCaddy — a tax workflow and client portal by Thomson Reuters used by accounting firms and their taxpayer clients.
+
+CRITICAL: Study this EXACT reference format from Image 2. Each test case is ONE scenario. You must structure each TC so it maps directly to one ADO step row:
+
+REFERENCE FORMAT (follow exactly):
+  title: "Verify [specific outcome]"
+  preconditions: A numbered list of setup conditions. Each item is one sentence. Example:
+    "1. Upload Document Request should be sent via DRL.\n2. There should be an Upload Document Request (Non-Fillable Category - W-2 Wages) in Consumer Profile sent by CPA.\n3. Consumer/CPA has uploaded Documents against this request."
+  steps: Array of numbered steps. Each step.action is ONE atomic action (verb + UI element + value). Each step.expected is a SPECIFIC, verifiable outcome.
+
+COVERAGE (every TC set must include):
+1. Happy path — complete successful flow
+2. One TC per distinct validation rule in the AC
+3. Edge cases: empty state, max/min values, special characters
+4. Negative: invalid input, wrong role, missing prerequisites
+5. Authorization: correct role CAN do it, wrong role CANNOT
+6. Persistence: change saved after page reload
+7. UI state: loading indicators, disabled states, success/error messages
+8. If AC mentions counts or sync: verify count accuracy and sync behavior
+9. If AC mentions undo/revert: verify undo works correctly
+
+PRODUCT-SPECIFIC KNOWLEDGE:
+- Roles: Tax Pro (CPA), Firm Admin, Taxpayer/Client, API user
+- Key concepts: DRL (Document Request List), Fillable/Non-Fillable categories, Requested Items tab, Uploaded Documents tab, binder creation, questionnaire PDF, e-signature
+- Status values: "FORM COMPLETED - FILLABLE & NOT UPLOADED", "NON FILLABLE"
+- Actions: Send DRL, Upload documents, Delete documents, Add New Request, Undo
+${helpContext ? `\nHELP CENTER:\n${helpContext}` : ''}
+
+RULES:
+- Title starts with "Verify"
+- Preconditions: numbered list of specific setup steps (role + data + screen state)
+- Steps: each step.action starts with "Step N:" then verb + exact UI element name
+- Expected: numbered list, one per step, SPECIFIC outcomes (exact messages, field states, counts)
+- Aim for 5–8 TCs covering ALL scenarios in the AC
+- Do NOT write generic expected results like "works correctly" or "as expected"`;
+
+  const userMsg = `${acText}
+
+Make a proper functional test from the above AC.
+
+Return a JSON array. Each object:
+{
+  "title": "Verify [specific outcome from AC]",
+  "description": "Which AC clause/scenario this covers",
+  "priority": 1|2|3,
+  "preconditions": "1. [setup condition]\\n2. [setup condition]\\n3. [setup condition]",
+  "steps": [
+    {"action": "Step 1: Log in as [exact role] and navigate to [exact screen path]", "expected": "[Screen] loads showing [specific elements]"},
+    {"action": "Step 2: [verb] [exact UI element] [exact value]", "expected": "[Specific verifiable outcome - exact text/count/state]"},
+    {"action": "Step N: [verb] [exact UI element]", "expected": "[Specific verifiable outcome]"}
+  ]
+}
+
+Requirements:
+- 5–8 test cases total covering the full AC
+- Preconditions must be a newline-separated numbered list of specific setup conditions
+- Step actions: numbered "Step N:", begin with a verb, name exact UI elements
+- Expected results: SPECIFIC — exact error messages, field names, counts, status values
+- Cover: happy path, all AC validations, edge cases, negative paths, authorization, persistence
+- Return JSON array ONLY. No markdown. No explanation.`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      system,
+      messages: [{ role: 'user', content: userMsg }],
+    }),
+  });
+
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(`Claude API error (${r.status}): ${err.error?.message || 'Check API key'}`);
+  }
+  const d = await r.json();
+  const raw = (d.content?.[0]?.text || '').replace(/```json[\s\S]*?```/gi, s => s.slice(7,-3)).replace(/```/gi,'').trim();
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed) || !parsed.length) throw new Error('Claude returned empty response');
+  return parsed;
+}
+
+// ── Smart AC Parser — generates REAL test cases from AC text, no API key needed ──
+// Output format matches Image 2 reference exactly:
+//   preconditions = numbered list string ("1. ...\n2. ...\n3. ...")
+//   steps = [{action: "Step N: ...", expected: "specific outcome"}]
+function smartACParser(story) {
+  const ac = story.ac || '';
+  const title = story.title || '';
+  const tcs = [];
+
+  // Infer role and screen from story context
+  function inferRole(text) {
+    const t = text.toLowerCase();
+    if (/firm admin|administrator/.test(t)) return 'Firm Admin';
+    if (/taxpayer|client|consumer/.test(t)) return 'Taxpayer/Consumer';
+    if (/cpa|tax pro/.test(t)) return 'Tax Pro (CPA)';
+    if (/api|integration|webhook/.test(t)) return 'API user';
+    return 'Tax Pro (CPA)';
+  }
+
+  function inferScreen(text) {
+    const t = text.toLowerCase();
+    if (/questionnaire/.test(t)) return 'TaxCaddy > Client Profile > Questionnaire';
+    if (/document request|drl/.test(t)) return 'TaxCaddy > Administrative > Create DRL > Send DRL';
+    if (/requested item|requested items/.test(t)) return 'TaxCaddy > Client Profile > Requested Items';
+    if (/uploaded document/.test(t)) return 'TaxCaddy > Client Profile > Uploaded Documents tab';
+    if (/binder/.test(t)) return 'SurePrep > Client Profile > Create Binder';
+    if (/signature|sign/.test(t)) return 'TaxCaddy > Client Profile > Requested Items > Signature';
+    if (/delivery|tax return/.test(t)) return 'TaxCaddy > Client Profile > Tax Return Delivery';
+    if (/invoice/.test(t)) return 'TaxCaddy > Client Profile > Invoices';
+    if (/notification|webhook/.test(t)) return 'TaxCaddy > Administrative > Notifications';
+    if (/additional user/.test(t)) return 'TaxCaddy > Client Profile > Additional Users';
+    if (/reset|support tool/.test(t)) return 'TaxCaddy Support Tool > Reset DRL';
+    if (/firm|setting|administrative/.test(t)) return 'TaxCaddy > Administrative > Firm Details';
+    if (/pdf|upload|document/.test(t)) return 'TaxCaddy > Client Profile > Documents';
+    return 'TaxCaddy > relevant screen';
+  }
+
+  const role = inferRole(ac + ' ' + title);
+  const screen = inferScreen(ac + ' ' + title);
+
+  // Build numbered precondition string (the reference format uses newline-separated numbered list)
+  function makePrecon(lines) {
+    return lines.filter(Boolean).map((l, i) => `${i + 1}. ${l}`).join('\n');
+  }
+
+  // Extract AC clauses
+  function extractClauses(text) {
+    const clauses = [];
+    const acPat = /AC\s*[\d]+\s*[-–—:]\s*([^\n]+(?:\n(?!AC\s*[\d])[^\n]+)*)/gi;
+    let m;
+    while ((m = acPat.exec(text)) !== null) clauses.push({ label: m[0].split(/[-–—:]/)[0].trim(), text: m[1].trim() });
+
+    const gwt = /(?:Given|When|Then|And)\s+([^\n.]+)/gi;
+    while ((m = gwt.exec(text)) !== null) {
+      if (!clauses.some(c => c.text.includes(m[1].trim().slice(0, 30))))
+        clauses.push({ label: m[0].split(' ')[0], text: m[1].trim() });
+    }
+
+    const num = /^\s*\d+[\.\)]\s+(.+)/gm;
+    while ((m = num.exec(text)) !== null) {
+      if (!clauses.some(c => c.text.includes(m[1].trim().slice(0, 30))))
+        clauses.push({ label: `Clause`, text: m[1].trim() });
+    }
+
+    if (!clauses.length) {
+      text.split(/\.\s+|\n\n/).forEach(s => {
+        const t = s.trim();
+        if (t.length > 20) clauses.push({ label: 'Clause', text: t });
+      });
+    }
+    return clauses.slice(0, 8);
+  }
+
+  const clauses = extractClauses(ac);
+
+  // TC 1: Happy path
+  tcs.push({
+    title: `Verify ${title} — successful end-to-end flow`,
+    description: 'Happy path: complete successful flow as described in the AC',
+    priority: 1,
+    preconditions: makePrecon([
+      `Log in as ${role} with valid credentials.`,
+      `${screen} is open and accessible.`,
+      `All required data records and prerequisites are set up.`,
+      `Network connection is stable.`,
+    ]),
+    steps: [
+      { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: `${screen} loads successfully, showing all expected UI elements, buttons, and data` },
+      { action: `Step 2: Perform the primary action described in the story: "${title.slice(0, 70)}"`, expected: 'The feature executes successfully with no errors. A success confirmation banner or updated UI state is displayed.' },
+      { action: 'Step 3: Verify all resulting UI changes and data updates are reflected immediately', expected: 'All data fields, counts, and status indicators update correctly in real time without requiring a page refresh' },
+      { action: 'Step 4: Hard refresh the page (Ctrl+F5) and navigate back to the same screen', expected: 'All changes from Step 2 are persisted. No data loss. The screen reflects the same state as after Step 2.' },
+    ],
+  });
+
+  // TC per AC clause
+  clauses.slice(0, 6).forEach((clause) => {
+    const cl = clause.text.toLowerCase();
+
+    if (/required|mandatory|must|cannot be empty|blank/.test(cl)) {
+      tcs.push({
+        title: `Verify required field validation — ${clause.text.slice(0, 60)}`,
+        description: `Validates that required fields cannot be submitted empty. ${clause.label}: ${clause.text.slice(0, 80)}`,
+        priority: 2,
+        preconditions: makePrecon([
+          `Log in as ${role} with valid credentials.`,
+          `${screen} is open.`,
+          `The form/screen with required fields is visible.`,
+        ]),
+        steps: [
+          { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: `Screen loads successfully` },
+          { action: 'Step 2: Leave all required fields empty and click Save/Submit', expected: 'Form submission is blocked. Required fields are highlighted with a red border. An inline error message appears (e.g., "This field is required") beneath each empty required field.' },
+          { action: 'Step 3: Fill in the required field with a valid value and click Save/Submit', expected: 'The red border and error message disappear. The form submits successfully and a success confirmation is displayed.' },
+          { action: 'Step 4: Attempt to submit with only whitespace characters in the required field', expected: 'System treats whitespace-only input as empty. Required field validation error is shown again.' },
+        ],
+      });
+    } else if (/delete|remove|undo/.test(cl)) {
+      tcs.push({
+        title: `Verify delete/remove behavior — ${clause.text.slice(0, 60)}`,
+        description: `${clause.label}: ${clause.text.slice(0, 100)}`,
+        priority: 1,
+        preconditions: makePrecon([
+          `Log in as ${role}.`,
+          `${screen} is open.`,
+          `At least one record/document exists to be deleted.`,
+          `Multiple records exist in the same category to test partial deletion behavior.`,
+        ]),
+        steps: [
+          { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: `Screen loads. Existing records are visible.` },
+          { action: 'Step 2: Delete one record from a category that has multiple records', expected: 'Only the deleted record is removed. Other records in the same category remain. The record count updates correctly.' },
+          { action: 'Step 3: Verify the status of the category after partial deletion', expected: `Category status and document count are updated to reflect the deletion. Status in Requested Items tab shows correctly (e.g., still "uploaded" if other docs remain).` },
+          { action: 'Step 4: Delete the last/only record in a category', expected: `Category status changes to "NOT UPLOADED" or equivalent. Count shows 0. The category is no longer marked as completed.` },
+          { action: 'Step 5: Click Undo (if available) immediately after deletion', expected: 'The deleted record is restored. Status and count revert to pre-deletion values. No duplicate records are created.' },
+          { action: 'Step 6: Verify no duplication occurs when uploading a new document after deletion', expected: 'New upload creates exactly one record. No duplicate entries appear in Uploaded Documents tab.' },
+        ],
+      });
+    } else if (/count|sync|number|total/.test(cl)) {
+      tcs.push({
+        title: `Verify count synchronization — ${clause.text.slice(0, 60)}`,
+        description: `${clause.label}: ${clause.text.slice(0, 100)}`,
+        priority: 2,
+        preconditions: makePrecon([
+          `Log in as ${role}.`,
+          `${screen} is open.`,
+          `Multiple documents are uploaded against a category.`,
+        ]),
+        steps: [
+          { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: `Screen loads. Document count is visible.` },
+          { action: 'Step 2: Note the current document count displayed in the Uploaded Documents tab', expected: 'Count is accurate and matches the actual number of uploaded documents' },
+          { action: 'Step 3: Upload an additional document to the same category', expected: 'Document count increments by exactly 1. Count in Uploaded Documents tab and Requested Items tab are in sync.' },
+          { action: 'Step 4: Delete one document and immediately check both tabs', expected: 'Count decrements by exactly 1 in both tabs simultaneously. No stale/cached count remains.' },
+          { action: 'Step 5: Refresh the page and verify count accuracy', expected: 'Count after refresh matches the actual number of documents. No discrepancy between tabs.' },
+        ],
+      });
+    } else if (/status|state|display|show/.test(cl)) {
+      tcs.push({
+        title: `Verify status display — ${clause.text.slice(0, 60)}`,
+        description: `${clause.label}: ${clause.text.slice(0, 100)}`,
+        priority: 2,
+        preconditions: makePrecon([
+          `Log in as ${role}.`,
+          `${screen} is open.`,
+          `The condition triggering the status change is set up.`,
+        ]),
+        steps: [
+          { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: `Screen loads. Status indicators are visible.` },
+          { action: `Step 2: Set up the initial state described in the AC: "${clause.text.slice(0, 70)}"`, expected: 'Initial state is confirmed. Status displays the expected initial value.' },
+          { action: 'Step 3: Perform the action that triggers the status change', expected: `Status updates immediately to the new value as specified in the AC: ${clause.text.slice(0, 80)}` },
+          { action: 'Step 4: Navigate away and return to the same screen', expected: 'Status remains as changed. The change is persisted.' },
+          { action: 'Step 5: Verify the status is consistent across all related screens and tabs', expected: 'Status shows the same value in Requested Items tab, Uploaded Documents tab, and any other related views.' },
+        ],
+      });
+    } else if (/permission|role|access|only.*can|admin|unauthorized/.test(cl)) {
+      tcs.push({
+        title: `Verify role-based access — ${clause.text.slice(0, 60)}`,
+        description: `${clause.label}: ${clause.text.slice(0, 100)}`,
+        priority: 1,
+        preconditions: makePrecon([
+          `Two accounts available: ${role} (authorized) and a user WITHOUT the required permission.`,
+          `${screen} is accessible to the authorized role.`,
+          `Required data is set up.`,
+        ]),
+        steps: [
+          { action: `Step 1: Log in as ${role} (authorized user) and navigate to ${screen}`, expected: 'Screen loads. The feature/action is visible and accessible to the authorized role.' },
+          { action: `Step 2: Perform the action: "${clause.text.slice(0, 70)}"`, expected: 'Action executes successfully for the authorized role. Expected outcome is achieved.' },
+          { action: 'Step 3: Log out and log in as a user WITHOUT the required permission/role', expected: 'Login succeeds for the lower-privilege user.' },
+          { action: 'Step 4: Attempt to access or perform the same action as the unauthorized user', expected: 'Feature is hidden, disabled, or returns a 403 / "Access denied" error. The unauthorized user cannot perform the action or access the data.' },
+        ],
+      });
+    } else {
+      tcs.push({
+        title: `Verify ${clause.text.slice(0, 70)}`,
+        description: `${clause.label}: ${clause.text.slice(0, 100)}`,
+        priority: 2,
+        preconditions: makePrecon([
+          `Log in as ${role} with valid credentials.`,
+          `${screen} is open.`,
+          `Required data and conditions are in place: ${clause.text.slice(0, 60)}.`,
+        ]),
+        steps: [
+          { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: `${screen} loads successfully` },
+          { action: `Step 2: Perform the action described in: "${clause.text.slice(0, 80)}"`, expected: 'Action is performed without errors' },
+          { action: `Step 3: Verify the outcome matches the AC: "${clause.text.slice(0, 80)}"`, expected: `System behavior matches acceptance criteria: ${clause.text.slice(0, 120)}` },
+          { action: 'Step 4: Verify the change is reflected in all related sections and tabs', expected: 'All related UI elements update correctly. No inconsistency between views.' },
+        ],
+      });
+    }
+  });
+
+  // Always add: Empty/no-data edge case
+  tcs.push({
+    title: `Verify behavior when no data exists — empty state for ${title.slice(0, 45)}`,
+    description: 'Edge case: system handles empty state gracefully with no data records',
+    priority: 3,
+    preconditions: makePrecon([
+      `Log in as ${role}.`,
+      `${screen} is accessible.`,
+      `No data records exist (e.g., no documents uploaded, no DRL sent, no clients).`,
+    ]),
+    steps: [
+      { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: 'Screen loads without errors or JavaScript console errors' },
+      { action: 'Step 2: Observe the screen when no data records exist', expected: 'A meaningful empty state is displayed (e.g., "No data available", "No documents found"). No blank white space or broken UI elements.' },
+      { action: 'Step 3: Attempt to perform the primary action when no data exists', expected: 'System either prevents the action with a clear message, or handles it gracefully without crashing. No 500 errors.' },
+    ],
+  });
+
+  // Always add: Data persistence TC
+  tcs.push({
+    title: `Verify data persists after save and page reload — ${title.slice(0, 40)}`,
+    description: 'Data integrity: changes survive page refresh and are reflected in the backend',
+    priority: 2,
+    preconditions: makePrecon([
+      `Log in as ${role} with valid credentials.`,
+      `${screen} is open.`,
+      `A record exists that can be modified.`,
+    ]),
+    steps: [
+      { action: `Step 1: Log in as ${role} and navigate to ${screen}`, expected: 'Screen loads successfully' },
+      { action: 'Step 2: Make a change (create, update, or configure a setting/record)', expected: 'Change is accepted — a success confirmation is displayed (green banner or updated UI state)' },
+      { action: 'Step 3: Hard refresh the page (Ctrl+F5 / Cmd+Shift+R)', expected: 'Page reloads without errors. No data loss warning appears.' },
+      { action: 'Step 4: Navigate back to the same screen and verify the change is still present', expected: 'The data/configuration saved in Step 2 is still present and correct. Values match exactly. No data corruption or partial save.' },
+    ],
+  });
+
+  return tcs;
+}
+
+
+// Main entry point — tries Claude first, falls back to smart parser
+async function generateTestCases(story) {
+  if (CFG.claudeKey) {
+    try {
+      return await genWithClaude(story);
+    } catch(e) {
+      if (e.message !== 'NO_KEY') {
+        console.warn('Claude generation failed, using smart parser:', e.message);
+      }
+    }
+  }
+  // Smart AC parser — real TCs from AC, no key needed
+  return smartACParser(story);
+}
+
+// ══════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════
+function renderTabs() {
+  document.getElementById('team-bar').innerHTML = CFG.teams.map(t =>
+    `<button class="t-tab ${t.key===curTeam?'active':''}" data-team="${t.key}">
+      <span class="tdot ${cache[t.key]?'on':''}"></span>${esc(t.label)}
+    </button>`).join('');
+}
+
+function renderDash(key) {
+  const d = cache[key]; if (!d) return;
+  const { sprint, stories, loadedAt } = d;
+  const name = sprint.name || sprint.path.split('\\').pop();
+  const withTC = stories.filter(s => s.tcId).length;
+  document.getElementById('s-sprint').textContent = name;
+  document.getElementById('s-sprint-sub').textContent = sprint.path;
+  document.getElementById('s-stories').textContent = stories.length;
+  document.getElementById('s-stories-sub').textContent = `in ${name}`;
+  document.getElementById('s-pushed').textContent = withTC;
+  document.getElementById('s-pushed-sub').textContent = `${stories.length - withTC} without TC`;
+  document.getElementById('s-err').textContent = stories.filter(s => s._err).length;
+  document.getElementById('s-time').textContent = loadedAt.toLocaleString();
+  document.getElementById('cfg-sub').textContent = `${CFG.org}/${CFG.project} — ${name} — ${stories.length} stories`;
+  document.getElementById('act-list').innerHTML = [
+    { t:'Sprint loaded',     m:`${stories.length} user stories from ${name}` },
+    { t:'Test Cases linked', m:`${withTC} stories have a TC` },
+    { t:'Pending',           m:`${stories.length - withTC} need a TC` },
+    { t:'Last refreshed',    m: loadedAt.toLocaleTimeString() },
+  ].map(i => `<li><div class="ic">&#9679;</div><div><div class="t">${esc(i.t)}</div><div class="m">${esc(i.m)}</div></div></li>`).join('');
+  renderRows(key);
+}
+
+function renderRows(key, filter) {
+  const d = cache[key]; if (!d) return;
+  const adoBase = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/`;
+  let rows = d.stories;
+  if (curView === 'errors')    rows = rows.filter(s => s._err);
+  if (curView === 'testcases') rows = rows.filter(s => s.tcId);
+  if (filter) { const q = filter.toLowerCase(); rows = rows.filter(s => s.title.toLowerCase().includes(q) || String(s.id).includes(q)); }
+
+  const html = rows.map(story => {
+    const ri = d.stories.indexOf(story);
+    const tcCell = story.tcId
+      ? `<div style="display:inline-flex;align-items:center;gap:5px">
+           <a href="${adoBase}${story.tcId}" target="_blank" style="color:var(--ac);text-decoration:none;font-weight:700">#${story.tcId} &#8599;</a>
+           <a href="${adoBase}${story.tcId}" target="_blank" style="color:var(--muted);text-decoration:none;font-size:14px">&#9998;</a>
+           <button data-del data-sid="${story.id}" data-tc="${story.tcId}" title="Unlink TC">&#10005;</button>
+         </div>`
+      : `<button data-create data-ri="${ri}" class="btn bp" style="padding:5px 12px;font-size:12px">+ Create Test Case</button>`;
+    return `<tr data-ri="${ri}">
+      <td><b>#${esc(story.id)}</b><div style="color:var(--muted);font-size:12px;margin-top:2px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(story.title)}</div></td>
+      <td><span class="pill ${stCls(story.state)}">${esc(story.state)}</span></td>
+      <td>${tcCell}</td>
+      <td>${story.tcId ? '<span class="pill good">Created</span>' : '<span class="pill dim">Not created</span>'}</td>
+    </tr>`;
+  });
+  const c = rows.length;
+  document.getElementById('tbl-sub').textContent = filter ? `${c} matching` : `${c} stor${c===1?'y':'ies'} loaded`;
+  document.getElementById('tbody').innerHTML = html.length ? html.join('')
+    : `<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:24px">No stories match.</td></tr>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  LOAD UI
+// ══════════════════════════════════════════════════════
+function setLoading(on) {
+  ['btn-sync','btn-refresh','btn-gen-all','btn-full'].forEach(id => {
+    const b = document.getElementById(id); if (b) b.disabled = on;
+  });
+}
+
+async function loadUI(key, force = false) {
+  setLoading(true);
+  const lbl = CFG.teams.find(t => t.key === key)?.label || key;
+  document.getElementById('tbody').innerHTML = `<tr class="ldrow"><td colspan="4"><span class="spin"></span>&nbsp;Fetching ${lbl} sprint...</td></tr>`;
+  ['s-sprint','s-stories','s-pushed'].forEach(id => document.getElementById(id).textContent = '—');
+  try {
+    await loadTeam(key, force);
+    renderTabs(); renderDash(key);
+    toast(`${lbl}: ${cache[key].stories.length} stories loaded`, 'success');
+  } catch(err) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="4" style="color:var(--bad);text-align:center;padding:24px">&#9888; ${esc(err.message)}</td></tr>`;
+    document.getElementById('tbl-sub').textContent = 'Error loading stories';
+    toast(err.message, 'error');
+  } finally { setLoading(false); }
+}
+
+// ══════════════════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════════════════
+function openModal(ri) {
+  const d = cache[curTeam]; if (!d) return;
+  const story = d.stories[ri]; if (!story) return;
+  mStory = story; mGenerated = [];
+  const adoBase = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/`;
+  const team = CFG.teams.find(t => t.key === curTeam)?.label || curTeam;
+  document.getElementById('m-title').textContent = `#${story.id} – ${story.title}`;
+  document.getElementById('m-meta').textContent  = `Team: ${team}  ·  State: ${story.state}  ·  Assigned: ${story.assignedTo}`;
+  document.getElementById('m-ac').textContent    = story.ac || '(no acceptance criteria)';
+
+  const sub = document.getElementById('m-sub');
+  const list = document.getElementById('m-list');
+  const pushBtn = document.getElementById('m-push');
+  const regenBtn = document.getElementById('m-regen');
+
+  if (story.tcId) {
+    sub.textContent = `TC #${story.tcId} linked`;
+    pushBtn.disabled = true;
+    regenBtn.style.display = 'inline-flex';
+    document.getElementById('m-push-lbl').textContent = '⬆ Push Test Cases to ADO';
+    list.innerHTML = `<div class="tc-card"><div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">&#9989;</span>
+      <div><div style="font-weight:700">TC #${story.tcId} linked via Tested By</div>
+      <div style="margin-top:5px"><a href="${adoBase}${story.tcId}" target="_blank" style="color:var(--ac);font-size:13px">Open #${story.tcId} in ADO &#8599;</a></div></div>
+    </div></div>`;
+  } else {
+    sub.textContent = CFG.claudeKey
+      ? 'Click Push — Help Center search + Claude generates from AC'
+      : 'Click Push — Smart AC Parser generates real TCs from your Acceptance Criteria';
+    pushBtn.disabled = false;
+    regenBtn.style.display = 'none';
+    document.getElementById('m-push-lbl').textContent = '⬆ Push Test Cases to ADO';
+    list.innerHTML = `<div style="color:var(--muted);text-align:center;padding:28px;font-size:13px;line-height:1.9">
+      ${CFG.claudeKey
+        ? `<span style="font-size:24px">&#9889;</span><br>
+           <b style="color:var(--text)">Claude + Help Center generation:</b><br>
+           <span style="color:var(--muted);font-size:12px">
+             1. Search SurePrep Help Center for feature context<br>
+             2. AC sent verbatim → "Make a proper functional test from the above AC"<br>
+             3. 6–10 TCs covering: happy path, validations, edge cases, authorization
+           </span>`
+        : `<span style="font-size:24px">&#128196;</span><br>
+           <b style="color:var(--text)">Smart AC Parser — real TCs from your Acceptance Criteria:</b><br>
+           <span style="color:var(--muted);font-size:12px">
+             Parses AC clauses (AC1/AC2 · Given/When/Then · numbered lists)<br>
+             Generates: happy path · validations · state changes · error handling · authorization · persistence<br>
+             <span style="color:#fff1b0">Set CFG.claudeKey for Claude-powered generation with Help Center context</span>
+           </span>`
+      }
+    </div>`;
+  }
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  if (mStory) syncOne(mStory.id).then(() => { renderRows(curTeam); renderDash(curTeam); });
+}
+
+async function doPush() {
+  if (!mStory) return;
+  const pushBtn = document.getElementById('m-push');
+  const spin    = document.getElementById('m-spin');
+  const lbl     = document.getElementById('m-push-lbl');
+  const sub     = document.getElementById('m-sub');
+  const list    = document.getElementById('m-list');
+
+  pushBtn.disabled = true; spin.style.display = 'inline-block'; lbl.textContent = ' Preparing...';
+  let tcs = [...mGenerated];
+
+  try {
+    if (!tcs.length) {
+      const hasClaude = !!CFG.claudeKey;
+      sub.textContent = hasClaude
+        ? 'Searching Help Center + generating from AC...'
+        : 'Generating test cases from Acceptance Criteria...';
+      list.innerHTML = `<div style="color:var(--muted);text-align:center;padding:24px;line-height:2">
+        <span class="spin"></span>&nbsp;${hasClaude ? 'Searching SurePrep Help Center...' : 'Parsing AC and generating test cases...'}<br>
+        <span style="font-size:11px">${hasClaude ? 'Then: "Make a proper functional test from the above AC"' : 'Applying standard test case format'}</span>
+      </div>`;
+      lbl.textContent = ' Generating...';
+      tcs = await generateTestCases(mStory);
+      mGenerated = tcs;
+      renderMList(tcs);
+      pushBtn.disabled = true;
+      spin.style.display = 'inline-block';
+    }
+
+    sub.textContent = 'Creating in Azure DevOps...';
+    lbl.textContent = ' Pushing...';
+    list.innerHTML  = `<div style="color:var(--muted);text-align:center;padding:24px"><span class="spin"></span>&nbsp;Creating Test Case in ADO...</div>`;
+
+    const tcId = await createTC(mStory, tcs);
+    const cs = cache[curTeam]?.stories.find(s => String(s.id) === String(mStory.id));
+    if (cs) cs.tcId = tcId;
+    mStory.tcId = tcId;
+
+    const u = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${tcId}`;
+    sub.textContent = `TC #${tcId} created ✓`;
+    list.innerHTML  = `<div class="tc-card"><div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:26px">&#9989;</span>
+      <div><div style="font-weight:700;font-size:15px">TC <a href="${u}" target="_blank" style="color:var(--ac)">#${tcId} &#8599;</a> created</div>
+      <div style="color:var(--muted);font-size:12px;margin-top:3px">${tcs.length} scenario(s) &middot; linked via Tested By</div></div>
+    </div></div>`;
+
+    pushBtn.disabled = true; spin.style.display = 'none'; lbl.textContent = ' ✓ Pushed';
+    document.getElementById('m-regen').style.display = 'inline-flex';
+    toast(`TC #${tcId} created for #${mStory.id}`, 'success');
+    renderRows(curTeam); renderDash(curTeam);
+    setTimeout(async () => { await syncOne(mStory.id); renderRows(curTeam); renderDash(curTeam); }, 2000);
+
+  } catch(err) {
+    sub.textContent = 'Push failed';
+    list.innerHTML  = `<div style="color:var(--bad);padding:14px;font-size:13px;border-radius:8px;background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.3);line-height:1.8"><b>&#9888; ${esc(err.message)}</b></div>`;
+    pushBtn.disabled = false; spin.style.display = 'none'; lbl.textContent = '⬆ Push Test Cases to ADO';
+    toast(err.message, 'error');
+  }
+}
+
+function renderMList(tcs) {
+  const list = document.getElementById('m-list');
+  list.innerHTML = tcs.map((tc, i) => `<div class="tc-card">
+    <div style="display:flex;align-items:flex-start;gap:9px">
+      <input type="checkbox" class="tcc" data-i="${i}" checked style="margin-top:3px;accent-color:var(--ac);flex-shrink:0"/>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:13px">${esc(tc.title)}</div>
+          <span style="font-size:11px;padding:2px 7px;border-radius:5px;background:rgba(108,140,255,.15);color:var(--ac)">P${tc.priority||2}</span>
+          <span style="font-size:11px;color:var(--muted)">${(tc.steps||[]).length} step(s)</span>
+        </div>
+        ${tc.description ? `<div style="font-size:12px;color:var(--muted);margin-top:3px;font-style:italic">${esc(tc.description)}</div>` : ''}
+        ${tc.preconditions ? `<div style="font-size:12px;color:#fff1b0;margin-top:5px;padding:5px 8px;background:rgba(241,196,15,.08);border-radius:5px;border-left:2px solid rgba(241,196,15,.5)"><b>Pre:</b> ${esc(tc.preconditions)}</div>` : ''}
+        <details style="margin-top:8px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:12px">Show ${(tc.steps||[]).length} steps</summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+            ${(tc.steps||[]).map((s,j)=>`
+              <div style="font-size:12px;border-left:2px solid var(--border);padding-left:10px">
+                <div style="color:var(--text);font-weight:500">${esc(s.action)}</div>
+                <div style="color:var(--good);margin-top:2px">&#10140; ${esc(s.expected)}</div>
+              </div>`).join('')}
+          </div>
+        </details>
+      </div>
+      <button class="btn bg tcp" data-i="${i}" style="padding:5px 10px;font-size:12px;flex-shrink:0">Push</button>
+    </div>
+    <div class="ts" id="ts-${i}"></div>
+  </div>`).join('');
+
+  list.querySelectorAll('.tcp').forEach(b => b.addEventListener('click', async () => {
+    const i = +b.dataset.i; const tc = mGenerated[i]; if (!tc) return;
+    b.disabled = true; b.textContent = '...';
+    const st = document.getElementById(`ts-${i}`);
+    st.style.display = 'block'; st.className = 'ts'; st.textContent = 'Pushing to ADO...';
+    try {
+      const tcId = await createTC(mStory, [tc]);
+      const cs = cache[curTeam]?.stories.find(s => String(s.id) === String(mStory.id));
+      if (cs) cs.tcId = tcId; mStory.tcId = tcId;
+      st.className = 'ts ok';
+      st.innerHTML = `&#9989; TC <a href="https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${tcId}" target="_blank" style="color:#a6f7c2;font-weight:700">#${tcId} &#8599;</a> created in ADO`;
+      toast(`TC #${tcId} created`, 'success'); renderRows(curTeam); renderDash(curTeam);
+    } catch(e) { st.className = 'ts err'; st.textContent = 'Failed: ' + e.message; b.disabled = false; b.textContent = 'Push'; }
+  }));
+}
+
+// ══════════════════════════════════════════════════════
+//  UNLINK
+// ══════════════════════════════════════════════════════
+async function unlinkTC(tcId, storyId) {
+  const d = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${tcId}?$expand=relations&api-version=7.1`);
+  const RELS = new Set(['Microsoft.VSTS.Common.TestedBy-Forward','Microsoft.VSTS.Common.TestedBy-Reverse','System.LinkTypes.Hierarchy-Reverse','System.LinkTypes.Hierarchy-Forward']);
+  const sfx = `/workitems/${storyId}`.toLowerCase();
+  const idx = []; (d.relations||[]).forEach((r,i) => { if (RELS.has(r.rel) && r.url.toLowerCase().endsWith(sfx)) idx.push(i); });
+  if (!idx.length) return;
+  idx.sort((a,b) => b-a);
+  const ops = [{ op:'test', path:'/rev', value:d.rev }];
+  idx.forEach(i => ops.push({ op:'remove', path:`/relations/${i}` }));
+  await adoPatch(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${tcId}?api-version=7.1`, ops);
+}
+
+// ══════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════
+async function doAuth() {
+  const p = document.getElementById('pat-in').value.trim();
+  const msg = document.getElementById('auth-msg');
+  if (!p) { msg.style.color = '#ff8f80'; msg.textContent = 'Please enter your PAT.'; return; }
+  msg.style.color = 'var(--muted)'; msg.textContent = 'Verifying with Azure DevOps...';
+  document.getElementById('auth-btn').disabled = true;
+  try {
+    // Direct call to ADO to verify PAT — works from any origin
+    const r = await fetch(`https://dev.azure.com/${CFG.org}/_apis/projects/${CFG.project}?api-version=7.1`, {
+      headers: { 'Authorization': authHeader(p), 'Accept': 'application/json', 'X-TFS-FedAuthRedirect': 'Suppress' },
+    });
+    if (!r.ok) { const b = await r.json().catch(()=>({})); throw new Error(b.message || `Auth failed (HTTP ${r.status})`); }
+    pat = p; localStorage.setItem(PAT_KEY, pat);
+    msg.style.color = '#a6f7c2'; msg.textContent = 'Connected! Loading sprint data...';
+    setTimeout(unlockApp, 350);
+  } catch(e) {
+    msg.style.color = '#ff8f80'; msg.textContent = e.message;
+    document.getElementById('auth-btn').disabled = false;
+  }
+}
+
+function unlockApp() {
+  document.getElementById('auth-wrap').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  renderTabs(); loadUI(curTeam);
+}
+
+function doDisconnect() {
+  pat = ''; localStorage.removeItem(PAT_KEY);
+  Object.keys(cache).forEach(k => delete cache[k]);
+  document.getElementById('pat-in').value = '';
+  document.getElementById('auth-msg').textContent = '';
+  document.getElementById('auth-btn').disabled = false;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-wrap').style.display = 'flex';
+}
+
+// ══════════════════════════════════════════════════════
+//  EVENTS
+// ══════════════════════════════════════════════════════
+document.getElementById('auth-btn').addEventListener('click', doAuth);
+document.getElementById('pat-in').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+document.getElementById('btn-disc').addEventListener('click', doDisconnect);
+document.getElementById('btn-refresh').addEventListener('click', () => loadUI(curTeam, false));
+document.getElementById('btn-sync').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-sync'); btn.disabled = true; btn.textContent = 'Syncing...';
+  try {
+    const d = cache[curTeam];
+    if (d) {
+      let cur = 0; const s = d.stories;
+      const wk = async () => { while (true) { const i = cur++; if (i >= s.length) break; try { const t = await findTC(s[i].id); s[i].tcId = t ? t.id : null; } catch {} }};
+      await Promise.all(Array.from({ length: Math.min(5, s.length) }, wk));
+      d.loadedAt = new Date(); renderDash(curTeam);
+      toast(`Synced — ${s.filter(x => x.tcId).length} TC(s) found`, 'success');
+    }
+  } catch(e) { toast(e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Sync from ADO'; }
+});
+
+document.getElementById('team-bar').addEventListener('click', e => {
+  const b = e.target.closest('.t-tab'); if (!b || b.dataset.team === curTeam) return;
+  curTeam = b.dataset.team; renderTabs(); loadUI(curTeam);
+});
+
+document.querySelectorAll('#sidenav a').forEach(a => a.addEventListener('click', e => {
+  if (a.target === '_blank') return; e.preventDefault();
+  document.querySelectorAll('#sidenav a').forEach(x => x.classList.remove('active'));
+  a.classList.add('active'); curView = a.dataset.view || 'dashboard'; renderRows(curTeam);
+  const d = cache[curTeam]; if (!d) return;
+  const sub = document.getElementById('tbl-sub'), s = d.stories;
+  if (curView==='errors') sub.textContent = `${s.filter(x=>x._err).length} with errors`;
+  else if (curView==='testcases') sub.textContent = `${s.filter(x=>x.tcId).length} with TC`;
+  else sub.textContent = `${s.length} loaded`;
+}));
+
+document.getElementById('filter').addEventListener('input', e => renderRows(curTeam, e.target.value));
+
+document.getElementById('tbody').addEventListener('click', async e => {
+  const del = e.target.closest('button[data-del]');
+  if (del) {
+    e.stopPropagation();
+    if (!confirm(`Remove TC #${del.dataset.tc} from #${del.dataset.sid}?\nThe TC stays in ADO — only the link is removed.`)) return;
+    del.disabled = true; del.textContent = '…';
+    const row = del.closest('tr'); if (row) row.style.opacity = '.5';
+    try {
+      await unlinkTC(del.dataset.tc, del.dataset.sid);
+      const s = cache[curTeam]?.stories.find(x => String(x.id) === String(del.dataset.sid));
+      if (s) s.tcId = null;
+      renderRows(curTeam); renderDash(curTeam); toast(`TC #${del.dataset.tc} unlinked`, 'success');
+    } catch(err) { if (row) row.style.opacity='1'; del.disabled=false; del.textContent='✕'; toast('Unlink failed: '+err.message,'error'); }
+    return;
+  }
+  const cr = e.target.closest('button[data-create]');
+  if (cr) {
+    e.stopPropagation();
+    const story = cache[curTeam]?.stories[+cr.dataset.ri]; if (!story) return;
+    cr.disabled = true; cr.innerHTML = `<span class="spin"></span> Generating...`;
+    try {
+      cr.innerHTML = `<span class="spin"></span> Creating in ADO...`;
+      const tcs = await generateTestCases(story);
+      const tcId = await createTC(story, tcs);
+      story.tcId = tcId;
+      renderRows(curTeam); renderDash(curTeam);
+      toast(`TC #${tcId} created — ${tcs.length} scenario(s)`, 'success');
+      setTimeout(async () => { await syncOne(story.id); renderRows(curTeam); renderDash(curTeam); }, 2000);
+    } catch(err) { toast('Failed: '+err.message,'error'); cr.disabled=false; cr.textContent='+ Create Test Case'; }
+    return;
+  }
+  if (e.target.closest('a')) return;
+  const tr = e.target.closest('tr[data-ri]'); if (!tr) return;
+  openModal(+tr.dataset.ri);
+});
+
+document.getElementById('m-close').addEventListener('click', closeModal);
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('m-push').addEventListener('click', doPush);
+document.getElementById('m-regen').addEventListener('click', async () => {
+  const btn = document.getElementById('m-regen'); btn.disabled = true;
+  const list = document.getElementById('m-list');
+  list.innerHTML = `<div style="color:var(--muted);text-align:center;padding:24px"><span class="spin"></span>&nbsp;Generating...</div>`;
+  try {
+    const tcs = await generateTestCases(mStory); mGenerated = tcs; renderMList(tcs);
+    document.getElementById('m-push').disabled = false; toast(`${tcs.length} TC(s) generated`, 'success');
+  } catch(e) { list.innerHTML = `<div style="color:var(--bad);padding:14px">${esc(e.message)}</div>`; toast(e.message,'error'); }
+  finally { btn.disabled = false; }
+});
+
+document.getElementById('btn-full').addEventListener('click', async () => {
+  const d = cache[curTeam]; if (!d) return;
+  const pending = d.stories.filter(s => !s.tcId);
+  if (!pending.length) { toast('All stories already have TCs!', 'success'); return; }
+  setLoading(true); document.getElementById('log').textContent = '';
+  const hasClaude = !!CFG.claudeKey;
+  log(`Generating TCs for ${pending.length} pending stories (${hasClaude ? 'Claude + Help Center' : 'Smart AC Parser'})...\n`);
+  let ok = 0, fail = 0;
+  for (const story of pending) {
+    log(`[#${story.id}] ${story.title}`);
+    try {
+      log(`  → Generating test cases...`);
+      const tcs = await generateTestCases(story);
+      log(`  → ${tcs.length} test case(s) generated`);
+      const tcId = await createTC(story, tcs);
+      story.tcId = tcId;
+      log(`  ✓ TC #${tcId} created in ADO\n`);
+      ok++; renderDash(curTeam);
+    } catch(e) {
+      log(`  ✗ ERROR: ${e.message}\n`);
+      story._err = e.message; fail++;
+    }
+  }
+  log(`Done: ${ok} created, ${fail} failed`);
+  toast(`${ok} TCs created, ${fail} failed`, fail ? 'error' : 'success');
+  setLoading(false);
+});
+
+document.getElementById('btn-gen-all').addEventListener('click', () => document.getElementById('btn-full').click());
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const d = cache[curTeam]; if (!d) { toast('No data loaded', 'error'); return; }
+  const blob = new Blob([JSON.stringify({ team:curTeam, sprint:d.sprint.name, stories:d.stories.map(s=>({id:s.id,title:s.title,state:s.state,tcId:s.tcId||null})) },null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `results-${curTeam}.json`; a.click();
+  toast('Exported', 'success');
+});
+
+// ══════════════════════════════════════════════════════
+//  INIT — auto-login with saved PAT
+// ══════════════════════════════════════════════════════
+(async () => {
+  const saved = localStorage.getItem(PAT_KEY);
+  if (!saved) return;
+  pat = saved;
+  // Verify saved PAT with a direct ADO call (no proxy needed)
+  try {
+    const r = await fetch(`https://dev.azure.com/${CFG.org}/_apis/projects/${CFG.project}?api-version=7.1`, {
+      headers: { 'Authorization': authHeader(), 'Accept': 'application/json', 'X-TFS-FedAuthRedirect': 'Suppress' },
+    });
+    if (!r.ok) throw new Error('expired');
+    unlockApp();
+  } catch(e) {
+    pat = ''; localStorage.removeItem(PAT_KEY);
+    document.getElementById('auth-msg').style.color = '#ff8f80';
+    document.getElementById('auth-msg').textContent = 'Your saved PAT has expired. Please re-authenticate.';
+  }
+})();
+</script>
+</body>
+</html>
