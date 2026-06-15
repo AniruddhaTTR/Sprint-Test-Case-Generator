@@ -147,6 +147,45 @@ button[data-del]:hover{background:rgba(231,76,60,.22)}
   border-radius:10px;padding:10px 15px;box-shadow:var(--shadow);font-size:13px;line-height:1.5}
 
 @media(max-width:900px){.app{grid-template-columns:1fr}aside{display:none}.stat{grid-column:span 6}.c8,.c4{grid-column:span 12}}
+
+/* Bug History view — hide test-case dashboard chrome that doesn't belong on a
+   bug list. Keeps the brand/sidebar visible; removes stat tiles, team tabs,
+   search, and the TC pipeline action buttons. */
+body.on-bug-history .stat { display: none !important; }
+body.on-bug-history .top-actions { display: none !important; }
+
+/* ── Bug modal styles ── */
+.mfoot{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-top:1px solid var(--border);background:rgba(0,0,0,.15)}
+.fld-label{display:block;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px;letter-spacing:.2px}
+.fld-input{width:100%;padding:9px 12px;background:rgba(0,0,0,.35);color:var(--ink);
+  border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;
+  font-family:inherit;box-sizing:border-box}
+.fld-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(108,140,255,.18)}
+textarea.fld-input{resize:vertical;font-family:Consolas,Monaco,monospace}
+.similar-hint{margin-top:8px;font-size:12px;color:#ffb86b;padding:8px 10px;
+  background:rgba(255,184,107,.08);border:1px solid rgba(255,184,107,.3);border-radius:6px}
+.similar-hint a{color:var(--accent);text-decoration:none;font-weight:600}
+.bug-drop{min-height:120px;border:2px dashed var(--border);border-radius:10px;padding:14px;
+  background:rgba(0,0,0,.2);transition:border-color .15s,background .15s}
+.bug-drop.dragover{border-color:var(--accent);background:rgba(108,140,255,.08)}
+.bug-drop.recording{border-color:#ff6b6b;background:rgba(231,76,60,.06);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{border-color:#ff6b6b}50%{border-color:#ffb1b1}}
+.drop-cta{text-align:center;color:var(--muted)}
+.attach-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
+.attach-list:empty{margin-top:0}
+.attach-item{position:relative;border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;background:rgba(0,0,0,.3);aspect-ratio:4/3}
+.attach-item img,.attach-item video{width:100%;height:100%;object-fit:cover;display:block}
+.attach-item .meta{position:absolute;bottom:0;left:0;right:0;padding:5px 8px;
+  background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;font-size:10px;
+  display:flex;justify-content:space-between;align-items:center}
+.attach-item .x{position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);color:#fff;
+  border:0;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1}
+.attach-item .x:hover{background:#e74c3c}
+kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(--border);
+  border-bottom-width:2px;border-radius:4px;padding:1px 6px;font-family:Consolas,monospace;
+  font-size:11px}
+.btn.danger{background:linear-gradient(135deg,#e74c3c,#c0392b);color:#fff}
 </style>
 </head>
 <body>
@@ -201,6 +240,8 @@ button[data-del]:hover{background:rgba(231,76,60,.22)}
       <a class="active" href="#" data-view="dashboard"><span class="nd"></span> Dashboard</a>
       <a href="#" data-view="sprints"><span class="nd" style="background:#8a5cff"></span> Sprints</a>
       <a href="#" data-view="testcases"><span class="nd" style="background:#2ecc71"></span> Test Cases</a>
+      <a href="#" data-view="bugs" id="nav-bugs"><span class="nd" style="background:#ff6b6b"></span> Report a Bug</a>
+      <a href="#" data-view="bug-history" id="nav-bug-history"><span class="nd" style="background:#ffb86b"></span> Bug History</a>
       <a href="#" data-view="errors"><span class="nd" style="background:#e74c3c"></span> Errors</a>
     </nav>
     <div class="ns">Integrations</div>
@@ -229,7 +270,7 @@ button[data-del]:hover{background:rgba(231,76,60,.22)}
       <ul id="act-list"><li><div class="ic">&#9679;</div><div><div class="t">Connecting...</div><div class="m">Fetching live data from ADO</div></div></li></ul>
     </section>
 
-    <section class="panel c12">
+    <section class="panel c12" id="qa-panel">
       <h2>Quick Actions <span class="sub" id="cfg-sub"></span></h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn bp" id="btn-full">&#9654; Generate All (Claude)</button>
@@ -237,6 +278,43 @@ button[data-del]:hover{background:rgba(231,76,60,.22)}
       </div>
       <pre id="log"></pre>
     </section>
+
+    <!-- Bug History panel — hidden by default, shown when 'Bug History' nav is active -->
+    <section class="panel c12" id="bug-history-panel" style="display:none;grid-column:span 12">
+      <h2 style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <span>🐞 Bug History <span class="sub" id="bh-count">0 bugs</span></span>
+        <span style="display:flex;gap:8px">
+          <button class="btn gh" id="bh-refresh" title="Re-query ADO for current state of each bug">↻ Refresh state</button>
+          <button class="btn gh" id="bh-export" title="Download bug history as JSON">↓ Export</button>
+          <button class="btn gh" id="bh-clear"   title="Clear the list (does NOT delete bugs from ADO)" style="color:#ff8a8a">Clear list</button>
+        </span>
+      </h2>
+      <div class="muted" style="font-size:12px;margin-bottom:12px">
+        Bugs you've created through this tool. The list is stored in your browser. Click any bug ID to open in Azure DevOps. State refreshes pull live status from ADO.
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;font-size:13px;border-collapse:collapse" id="bh-table">
+          <thead>
+            <tr style="background:rgba(0,0,0,.25);color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:1px">
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Bug ID</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Title</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Team</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Sprint</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Status</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Environment</th>
+              <th style="padding:9px 10px;text-align:center;border-bottom:1px solid var(--border)" title="Attachments">📎</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Created By</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Created</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)"></th>
+            </tr>
+          </thead>
+          <tbody id="bh-tbody">
+            <tr><td colspan="10" style="text-align:center;padding:24px;color:var(--muted)">No bugs reported yet. Click "+ Report a Bug" to create your first one.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 
   <!-- Story modal -->
@@ -272,6 +350,280 @@ button[data-del]:hover{background:rgba(231,76,60,.22)}
     </div>
   </div>
 
+  <!-- AI-first Bug modal (2-step) -->
+  <div id="bug-modal" class="moverlay">
+    <div class="mbox" style="max-width:820px">
+      <div class="mhead">
+        <div style="flex:1;min-width:0">
+          <div style="color:var(--muted);font-size:11px;letter-spacing:1.2px;text-transform:uppercase">
+            <span style="color:#ff8a8a">🐞</span>&nbsp; Report a Bug
+          </div>
+          <div id="bug-step-hdr" style="font-size:16px;font-weight:700;margin-top:6px">Step 1 of 2 · Tell us what happened</div>
+        </div>
+        <button id="bug-close" class="btn gh">✕</button>
+      </div>
+
+      <!-- ── STEP 1: Capture ─────────────────────────────────────────── -->
+      <div id="bug-step1" class="mbody">
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <div>
+            <label class="fld-label">Describe the bug in one line <span style="color:#ff8a8a">*</span></label>
+            <input id="bug-oneline" type="text" class="fld-input"
+              placeholder="e.g. 'Reset DRL button doesn't fire when multiple taxpayers are selected'" />
+            <div id="bug-similar" class="similar-hint" style="display:none"></div>
+            <div class="muted" style="font-size:11px;margin-top:6px">
+              That's all we need. The smart bug analyzer turns this one-liner into a full bug report &mdash; title, repro steps, expected/actual, severity, and technical observations.
+            </div>
+          </div>
+
+          <div>
+            <label class="fld-label" style="display:flex;align-items:center;gap:8px">
+              Attach a screenshot or recording
+              <span class="muted" style="font-weight:400;font-size:11px">helps the AI a lot · 📷 paste · ⬆ drop · 🎥 record</span>
+            </label>
+            <div id="bug-drop" class="bug-drop">
+              <div class="drop-cta">
+                <div style="font-size:22px;margin-bottom:8px">📸</div>
+                <div style="font-size:14px;font-weight:600;color:var(--text)">
+                  Drop your screenshot or video here
+                </div>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">
+                  The AI will <b style="color:#a6f7c2">read every error message, UI element, and screen state</b><br>
+                  visible in your screenshot — generating a much more accurate bug report.<br>
+                  <span style="color:#fff1b0">📷 Paste (Ctrl+V) · ⬆ Drop file · 🎥 Record screen</span>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+                  <label class="btn gh" style="cursor:pointer">
+                    ⬆ Choose files
+                    <input type="file" id="bug-file" multiple accept="image/*,video/*" style="display:none" />
+                  </label>
+                  <button class="btn gh" id="bug-record">🎥 Record screen</button>
+                </div>
+              </div>
+              <div id="bug-attach-list" class="attach-list"></div>
+            </div>
+            <div style="font-size:12px;margin-top:8px;display:flex;align-items:flex-start;gap:8px;line-height:1.6;background:rgba(166,247,194,0.06);border:1px solid rgba(46,204,113,0.25);border-radius:8px;padding:8px 12px">
+              <span style="color:#2ecc71;font-size:16px;flex-shrink:0">✦</span>
+              <span><b style="color:#a6f7c2">Tip — screenshot = better report.</b>
+              When you attach a screenshot, the AI reads the exact error text, identifies the screen and role, and uses it as the primary source for the title, repro steps, expected and actual results.
+              Without a screenshot, the report is based only on the text you type below.</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="fld-label">Assign to team <span style="color:#ff8a8a">*</span></label>
+            <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center">
+              <select id="bug-team" class="fld-input"></select>
+              <div id="bug-team-sprint" class="muted" style="font-size:12px;white-space:nowrap">—</div>
+            </div>
+            <div id="bug-team-area" class="muted" style="font-size:11px;margin-top:6px;font-family:Consolas,monospace">—</div>
+          </div>
+
+          <div>
+            <label class="fld-label">Environment(s) affected <span style="color:#ff8a8a">*</span></label>
+            <div id="bug-envs" style="display:flex;gap:14px;flex-wrap:wrap"></div>
+            <div class="muted" style="font-size:11px;margin-top:6px">
+              Selected environments are listed first in the bug title (e.g. <code>Prod / Stage || ...</code>) &mdash; matches the team's reference format.
+            </div>
+          </div>
+
+          <div>
+            <label class="fld-label">Module / Feature area <span class="muted" style="font-weight:400">(optional)</span></label>
+            <input id="bug-module" type="text" class="fld-input"
+              placeholder="e.g. Billing · DRL Reset · Stripe Checkout · Document Upload" />
+            <div class="muted" style="font-size:11px;margin-top:6px">
+              Adds a second title segment: <code>&lt;envs&gt; || &lt;module&gt; || &lt;detail&gt;</code>.
+            </div>
+          </div>
+
+          <div style="border:1px solid var(--border);border-radius:10px;padding:14px;background:rgba(108,140,255,.04)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span style="font-size:14px">🎯</span>
+              <span style="font-size:13px;font-weight:600">Context for accurate Steps to Reproduce</span>
+              <span class="muted" style="font-size:11px">(all optional — but each one you fill in replaces a generic placeholder with a real step)</span>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div>
+                <label class="fld-label" style="margin-bottom:4px">Affected screen / page</label>
+                <input id="bug-ctx-screen" type="text" class="fld-input"
+                  placeholder="e.g. CPA Portal → Billing → Payment Setup" />
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div>
+                  <label class="fld-label" style="margin-bottom:4px">User role used</label>
+                  <input id="bug-ctx-role" type="text" class="fld-input"
+                    placeholder="e.g. CPA admin · Consumer · Support staff" />
+                </div>
+                <div>
+                  <label class="fld-label" style="margin-bottom:4px">Test data / inputs used</label>
+                  <input id="bug-ctx-data" type="text" class="fld-input"
+                    placeholder="e.g. Firm: ACME-001, Tax Year: 2025, Client IDs: 12345, 12346" />
+                </div>
+              </div>
+
+              <div>
+                <label class="fld-label" style="margin-bottom:4px">Workflow before the bug</label>
+                <input id="bug-ctx-prior" type="text" class="fld-input"
+                  placeholder="e.g. After uploading 3 W-2 docs and signing the engagement letter" />
+              </div>
+
+              <div>
+                <label class="fld-label" style="margin-bottom:4px">The specific action that triggered the bug</label>
+                <input id="bug-ctx-action" type="text" class="fld-input"
+                  placeholder="e.g. Clicked Reset DRL after selecting 3 taxpayers" />
+              </div>
+
+              <div>
+                <label class="fld-label" style="margin-bottom:4px">Error / message you saw on screen <span class="muted" style="font-weight:400">(if any)</span></label>
+                <input id="bug-ctx-error" type="text" class="fld-input"
+                  placeholder="e.g. Toast: 'Save failed' · Console: TypeError at reset.js:142 · HTTP 500" />
+              </div>
+            </div>
+          </div>
+
+          <details style="font-size:12px;color:var(--muted)">
+            <summary style="cursor:pointer;color:var(--ink);font-weight:600">▾ Auto-captured environment</summary>
+            <div id="bug-ctx-preview" style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;font-family:Consolas,monospace;font-size:11px;line-height:1.6"></div>
+          </details>
+
+          <div id="bug-msg" style="min-height:20px;font-size:13px"></div>
+        </div>
+      </div>
+
+      <!-- ── STEP 3: Success (shown after submission) ────────────────── -->
+      <div id="bug-step3" class="mbody" style="display:none">
+        <div style="text-align:center;padding:18px 10px">
+          <div style="width:64px;height:64px;border-radius:50%;margin:0 auto 14px;
+               background:linear-gradient(135deg,rgba(46,204,113,.2),rgba(108,140,255,.2));
+               border:1px solid rgba(46,204,113,.45);display:grid;place-items:center;font-size:32px">
+            ✓
+          </div>
+          <div style="font-size:20px;font-weight:700;margin-bottom:6px" id="bug-success-title">Bug created in Azure DevOps</div>
+          <div id="bug-success-sub" class="muted" style="font-size:13px;margin-bottom:22px">—</div>
+
+          <div id="bug-success-card" style="text-align:left;max-width:520px;margin:0 auto 22px;
+               background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Bug summary</div>
+            <div id="bug-success-line1" style="font-size:14px;font-weight:600;line-height:1.45"></div>
+            <div id="bug-success-line2" style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55"></div>
+
+            <div id="bug-success-attach-wrap" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px" id="bug-success-attach-label">Attachments uploaded</div>
+              <div id="bug-success-attach-list" class="attach-list"></div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <a id="bug-view-ado" class="btn primary" href="#" target="_blank" rel="noopener"
+               style="text-decoration:none;padding:11px 22px">↗ View Bug in Azure DevOps</a>
+            <button class="btn gh" id="bug-report-another" style="padding:11px 22px">+ Report Another</button>
+            <button class="btn gh" id="bug-success-done" style="padding:11px 22px">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 2: AI-generated review ─────────────────────────────── -->
+      <div id="bug-step2" class="mbody" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:14px">
+
+          <div id="bug-ai-banner" style="padding:10px 14px;background:linear-gradient(135deg,rgba(108,140,255,.15),rgba(138,92,255,.15));border:1px solid rgba(108,140,255,.4);border-radius:10px;font-size:12px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">✨</span>
+            <span>AI generated the report below. Review and edit anything before submitting &mdash; all fields are editable.</span>
+          </div>
+
+          <div>
+            <label class="fld-label">Title <span style="color:#ff8a8a">*</span></label>
+            <input id="bug-title" type="text" class="fld-input" />
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div>
+              <label class="fld-label">Severity <span style="color:#ff8a8a">*</span></label>
+              <select id="bug-severity" class="fld-input">
+                <option value="1 - Critical">1 — Critical</option>
+                <option value="2 - High">2 — High</option>
+                <option value="3 - Medium">3 — Medium</option>
+                <option value="4 - Low">4 — Low</option>
+              </select>
+              <div id="bug-sev-rationale" class="muted" style="font-size:11px;margin-top:4px">—</div>
+            </div>
+            <div>
+              <label class="fld-label">Priority</label>
+              <select id="bug-priority" class="fld-input">
+                <option value="1">1 — Highest</option>
+                <option value="2">2 — High</option>
+                <option value="3">3 — Medium</option>
+                <option value="4">4 — Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="bug-story-row" style="display:none">
+            <label class="fld-label">Linked User Story (optional)</label>
+            <select id="bug-story" class="fld-input">
+              <option value="">— no story (bug lands in team sprint directly) —</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="fld-label">Description</label>
+            <textarea id="bug-description" class="fld-input" rows="3" placeholder="Brief description of the bug..."></textarea>
+          </div>
+
+          <div>
+            <label class="fld-label">Steps to Reproduce</label>
+            <textarea id="bug-repro" class="fld-input" rows="5"></textarea>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div>
+              <label class="fld-label">Expected Result</label>
+              <textarea id="bug-expected" class="fld-input" rows="3"></textarea>
+            </div>
+            <div>
+              <label class="fld-label">Actual Result</label>
+              <textarea id="bug-actual" class="fld-input" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div>
+            <label class="fld-label">Technical observations</label>
+            <textarea id="bug-tech" class="fld-input" rows="3" placeholder="Console errors, network failures, suspected root cause..."></textarea>
+          </div>
+
+          <!-- Attachments to be uploaded with this bug (read-only confirmation). -->
+          <div id="bug-step2-attach-wrap" style="display:none">
+            <label class="fld-label" style="display:flex;align-items:center;gap:8px">
+              📎 Attachments to include <span class="muted" style="font-weight:400" id="bug-step2-attach-count"></span>
+            </label>
+            <div id="bug-step2-attach-list" class="attach-list"></div>
+            <div class="muted" style="font-size:11px;margin-top:6px">
+              These will be uploaded to ADO and linked to the bug automatically when you click Create Bug. Images are embedded inline in the Repro Steps section so developers can preview them without clicking through.
+            </div>
+          </div>
+
+          <div id="bug-msg2" style="min-height:20px;font-size:13px"></div>
+        </div>
+      </div>
+
+      <div class="mfoot" id="bug-mfoot">
+        <span id="bug-foot-hint" class="muted" style="font-size:12px">Press <kbd>Esc</kbd> to close</span>
+        <div style="display:flex;gap:8px" id="bug-step1-actions">
+          <button class="btn gh" id="bug-cancel">Cancel</button>
+          <button class="btn primary" id="bug-generate">✨ Generate Bug Report</button>
+        </div>
+        <div style="display:none;gap:8px" id="bug-step2-actions">
+          <button class="btn gh" id="bug-back">← Back</button>
+          <button class="btn gh" id="bug-regen">✨ Regenerate</button>
+          <button class="btn primary" id="bug-submit">Create Bug</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <span>&copy; 2026 Sprint Test Case Generator</span>
     <span id="footer-txt">v2.0 &middot; Live ADO data</span>
@@ -286,10 +638,14 @@ const CFG = {
   org:     'tr-tax',
   project: 'TaxProf',
   teams: [
-    { key:'surePrep-tcd-elite',     label:'Elite'     },
-    { key:'surePrep-tcd-knights',   label:'Knights'   },
-    { key:'surePrep-tcd-mavericks', label:'Mavericks' },
+    { key:'surePrep-tcd-elite',     label:'Elite',     areaPath:'TaxProf\\surePrep\\components\\TaxCaddy\\surePrep-tcd-elite'     },
+    { key:'surePrep-tcd-knights',   label:'Knights',   areaPath:'TaxProf\\surePrep\\components\\TaxCaddy\\surePrep-tcd-knights'   },
+    { key:'surePrep-tcd-mavericks', label:'Mavericks', areaPath:'TaxProf\\surePrep\\components\\TaxCaddy\\surePrep-tcd-mavericks' },
   ],
+  // Environments shown as checkboxes on Step 1 of the bug modal. Selections
+  // are joined with " / " and used as the leading title segment, mirroring
+  // the team's reference bug format: "<envs> || <module> || <detail>".
+  environments: ['Prod', 'Stage', 'QA', 'Dev'],
   claudeKey: '', // Optional: paste your Anthropic API key here
 };
 
@@ -1343,14 +1699,61 @@ document.getElementById('team-bar').addEventListener('click', e => {
 
 document.querySelectorAll('#sidenav a').forEach(a => a.addEventListener('click', e => {
   if (a.target === '_blank') return; e.preventDefault();
+
+  // "Report a Bug" sidebar item opens the modal directly — doesn't change view
+  if (a.dataset.view === 'bugs') {
+    BugUI.open();
+    return;
+  }
+
   document.querySelectorAll('#sidenav a').forEach(x => x.classList.remove('active'));
-  a.classList.add('active'); curView = a.dataset.view || 'dashboard'; renderRows(curTeam);
+  a.classList.add('active');
+  curView = a.dataset.view || 'dashboard';
+
+  // Toggle main panels based on the selected view.
+  // Bug History view replaces the Stories/Sprint Info/Quick Actions with the
+  // dedicated bug list panel. It also hides the test-case dashboard chrome
+  // (stat tiles + top toolbar) via the `on-bug-history` body class.
+  const onBugHistory = curView === 'bug-history';
+  document.body.classList.toggle('on-bug-history', onBugHistory);
+  document.querySelectorAll('.panel').forEach(p => {
+    if (p.id === 'bug-history-panel') p.style.display = onBugHistory ? '' : 'none';
+    else                              p.style.display = onBugHistory ? 'none' : '';
+  });
+
+  if (onBugHistory) {
+    renderBugHistory();
+    return;
+  }
+
+  renderRows(curTeam);
   const d = cache[curTeam]; if (!d) return;
   const sub = document.getElementById('tbl-sub'), s = d.stories;
   if (curView==='errors') sub.textContent = `${s.filter(x=>x._err).length} with errors`;
   else if (curView==='testcases') sub.textContent = `${s.filter(x=>x.tcId).length} with TC`;
   else sub.textContent = `${s.length} loaded`;
 }));
+
+// Bug history controls
+document.getElementById('bh-refresh').addEventListener('click', refreshAllBugStates);
+document.getElementById('bh-clear').addEventListener('click', () => {
+  if (!BugHistory.load().length) return;
+  if (!confirm('Clear the entire bug history list?\n\nThis ONLY removes the local list — bugs stay in Azure DevOps.')) return;
+  BugHistory.clear();
+  renderBugHistory();
+  toast('Bug history cleared', 'success');
+});
+document.getElementById('bh-export').addEventListener('click', () => {
+  const list = BugHistory.load();
+  if (!list.length) { toast('Nothing to export', 'info'); return; }
+  const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bug-history-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
 document.getElementById('filter').addEventListener('input', e => renderRows(curTeam, e.target.value));
 
@@ -1462,6 +1865,2171 @@ document.getElementById('btn-export').addEventListener('click', () => {
     document.getElementById('auth-msg').textContent = 'Your saved PAT has expired. Please re-authenticate.';
   }
 })();
+
+// ══════════════════════════════════════════════════════════════════════════
+//   BUG REPORTING (Phase 2.1 — AI-first)
+//
+//   Flow:
+//     STEP 1  one-liner + attachments + team
+//     ↓ user clicks "Generate with AI"
+//     [Claude reads one-liner + sees screenshot via vision]
+//     [returns structured bug report]
+//     ↓
+//     STEP 2  full editable bug report (prefilled)
+//     ↓ user clicks "Create Bug"
+//     [Bug created in selected team's CURRENT sprint, with attachments]
+//
+//   Without a Claude key: Step 2 still opens, but fields are blank
+//   except the one-liner copied to the title.
+// ══════════════════════════════════════════════════════════════════════════
+// ── Bug History VIEW (rendering, refresh, row actions) ──────────────────
+function renderBugHistory() {
+  const list = BugHistory.load();
+  const tbody = document.getElementById('bh-tbody');
+  const counter = document.getElementById('bh-count');
+  if (!tbody || !counter) return;
+  counter.textContent = `${list.length} bug${list.length === 1 ? '' : 's'}`;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--muted)">No bugs reported yet. Click "+ Report a Bug" to create your first one.</td></tr>`;
+    return;
+  }
+
+  const escH = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const statePill = (state) => {
+    const s = (state || '').toLowerCase();
+    const color = /closed|resolved|fixed|done/.test(s) ? '#2ecc71'
+                : /active|in progress|committed/.test(s) ? '#6c8cff'
+                : /removed/.test(s) ? '#888'
+                : '#f1c40f';
+    return `<span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">${escH(state || 'New')}</span>`;
+  };
+  const dateShort = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  tbody.innerHTML = list.map(b => `
+    <tr data-id="${escH(b.id)}" style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px;font-weight:600">
+        <a href="${escH(b.url)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">#${escH(b.id)} ↗</a>
+      </td>
+      <td style="padding:10px;max-width:340px;line-height:1.4">
+        <div style="font-weight:500">${escH(b.title)}</div>
+        ${b.module ? `<div class="muted" style="font-size:11px;margin-top:2px">Module: ${escH(b.module)}</div>` : ''}
+      </td>
+      <td style="padding:10px"><span style="background:rgba(108,140,255,.15);color:var(--accent);border:1px solid rgba(108,140,255,.4);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">${escH(b.teamLabel || b.team || '—')}</span></td>
+      <td style="padding:10px;font-size:12px">${escH(b.sprint || '—')}</td>
+      <td style="padding:10px">${statePill(b.state)}</td>
+      <td style="padding:10px;font-size:12px">${(b.environments || []).map(e => `<span style="background:rgba(255,184,107,.15);color:#ffb86b;border:1px solid rgba(255,184,107,.4);border-radius:4px;padding:1px 6px;font-size:10px;margin-right:3px">${escH(e)}</span>`).join('') || '—'}</td>
+      <td style="padding:10px;text-align:center;font-size:12px" title="${b.attachmentCount || 0} attachment${b.attachmentCount === 1 ? '' : 's'} uploaded with this bug">${b.attachmentCount ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;background:rgba(108,140,255,.15);border:1px solid rgba(108,140,255,.4);color:var(--accent);border-radius:999px;font-weight:600">📎 ${b.attachmentCount}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="padding:10px;font-size:12px">${escH(b.createdBy || '—')}</td>
+      <td style="padding:10px;font-size:12px;white-space:nowrap">${escH(dateShort(b.createdAt))}</td>
+      <td style="padding:10px;text-align:right;white-space:nowrap">
+        <button class="bh-refresh-one btn gh" data-id="${escH(b.id)}" title="Refresh state from ADO" style="padding:3px 8px;font-size:11px;margin-right:4px">↻</button>
+        <a href="${escH(b.url)}" target="_blank" rel="noopener" class="btn primary" style="padding:3px 10px;font-size:11px;text-decoration:none;margin-right:4px">Open</a>
+        <button class="bh-remove btn gh" data-id="${escH(b.id)}" title="Remove from this list (does NOT delete in ADO)" style="padding:3px 8px;font-size:11px;color:#ff8a8a">✕</button>
+      </td>
+    </tr>
+  `).join('');
+
+  // Wire row actions
+  tbody.querySelectorAll('.bh-remove').forEach(b => b.addEventListener('click', e => {
+    const id = b.dataset.id;
+    if (!confirm(`Remove bug #${id} from this list?\n\nThis does NOT delete the bug from Azure DevOps — it stays exactly where it was created. This only removes it from your local history.`)) return;
+    BugHistory.remove(id);
+    renderBugHistory();
+  }));
+  tbody.querySelectorAll('.bh-refresh-one').forEach(b => b.addEventListener('click', async e => {
+    const id = b.dataset.id;
+    b.disabled = true; b.textContent = '⋯';
+    try {
+      const data = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${id}?fields=System.State&api-version=7.1`);
+      BugHistory.updateState(id, data.fields['System.State'] || 'Unknown');
+      renderBugHistory();
+    } catch (err) {
+      toast(`Refresh failed for #${id}: ${err.message}`, 'error');
+      b.disabled = false; b.textContent = '↻';
+    }
+  }));
+}
+
+async function refreshAllBugStates() {
+  const list = BugHistory.load();
+  if (!list.length) return;
+  const btn = document.getElementById('bh-refresh');
+  btn.disabled = true; btn.textContent = '⋯ Refreshing…';
+  let updated = 0;
+  for (const b of list) {
+    try {
+      const data = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${b.id}?fields=System.State&api-version=7.1`);
+      const newState = data.fields['System.State'] || 'Unknown';
+      if (newState !== b.state) { BugHistory.updateState(b.id, newState); updated++; }
+    } catch (_) { /* skip unreachable */ }
+  }
+  btn.disabled = false; btn.textContent = '↻ Refresh state';
+  renderBugHistory();
+  toast(`Refreshed ${list.length} bug${list.length === 1 ? '' : 's'} from ADO · ${updated} state change${updated === 1 ? '' : 's'}`, 'success');
+}
+
+// ── Bug history: persistent list of bugs created via this dashboard ──
+// Storage: localStorage key 'sptcg.bugs'. Per-browser, per-user. The list is
+// rendered in the "Bug History" sidebar view and can be refreshed against ADO
+// to pull current state (New / Active / Resolved / Closed).
+const BugHistory = (() => {
+  const KEY = 'sptcg.bugs';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
+  }
+  function save(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) { console.warn('Could not save bug history:', e); }
+  }
+  function add(bug) {
+    const list = load();
+    // Dedupe by id — if it already exists, update in place
+    const idx = list.findIndex(b => String(b.id) === String(bug.id));
+    if (idx >= 0) list[idx] = { ...list[idx], ...bug };
+    else list.unshift(bug);   // newest on top
+    save(list);
+    return list;
+  }
+  function remove(id) {
+    const list = load().filter(b => String(b.id) !== String(id));
+    save(list);
+    return list;
+  }
+  function clear() { save([]); }
+  function updateState(id, state) {
+    const list = load();
+    const b = list.find(x => String(x.id) === String(id));
+    if (b) { b.state = state; b.lastRefreshedAt = new Date().toISOString(); save(list); }
+    return list;
+  }
+  return { load, save, add, remove, clear, updateState };
+})();
+
+const BugUI = (() => {
+  let attachments = [];      // [{ blob, name, type, size, previewUrl }]
+  let recorder = null;
+  let recorderStream = null;
+  let recordedChunks = [];
+  let context = null;
+  let preStoryId = null;
+  let teamSprintCache = {};  // team -> { path, id, name }
+  let generatedReport = null;
+
+  function captureContext() {
+    const env = /localhost|qa|test|stage/i.test(location.href) ? 'QA'
+              : /preprod|uat/i.test(location.href) ? 'UAT'
+              : /prod/i.test(location.href) ? 'PROD' : 'QA';
+    return {
+      url: location.href,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      viewport: [window.innerWidth, window.innerHeight],
+      environment: env,
+      timestamp: new Date().toISOString(),
+      reportedBy: (CFG && CFG.userEmail) || '',
+    };
+  }
+
+  function open(opts = {}) {
+    preStoryId = opts.storyId || null;
+    attachments = [];
+    context = captureContext();
+    generatedReport = null;
+
+    // Show Step 1, hide Step 2 and the success state
+    document.getElementById('bug-step1').style.display = 'block';
+    document.getElementById('bug-step2').style.display = 'none';
+    document.getElementById('bug-step3').style.display = 'none';
+    document.getElementById('bug-step1-actions').style.display = 'flex';
+    document.getElementById('bug-step2-actions').style.display = 'none';
+    document.getElementById('bug-mfoot').style.display = 'flex';
+    document.getElementById('bug-step-hdr').textContent = 'Step 1 of 2 · Tell us what happened';
+
+    // Reset step 1
+    document.getElementById('bug-oneline').value = '';
+    document.getElementById('bug-similar').style.display = 'none';
+    document.getElementById('bug-msg').textContent = '';
+    renderAttachments();
+    renderContext();
+
+    // Populate team dropdown
+    const teamSel = document.getElementById('bug-team');
+    teamSel.innerHTML = '';
+    CFG.teams.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.key;
+      opt.textContent = t.label;
+      if (t.key === curTeam) opt.selected = true;
+      teamSel.appendChild(opt);
+    });
+    loadTeamSprint(teamSel.value);
+    showTeamArea(teamSel.value);
+
+    // Render environment checkboxes
+    const envBox = document.getElementById('bug-envs');
+    envBox.innerHTML = (CFG.environments || []).map(e => `
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+        <input type="checkbox" class="bug-env" value="${e}" ${e === 'QA' ? 'checked' : ''}
+          style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer" />
+        <span>${e}</span>
+      </label>
+    `).join('');
+
+    // Reset module + structured-context fields
+    document.getElementById('bug-module').value = '';
+    document.getElementById('bug-ctx-screen').value = '';
+    document.getElementById('bug-ctx-role').value = '';
+    document.getElementById('bug-ctx-data').value = '';
+    document.getElementById('bug-ctx-prior').value = '';
+    document.getElementById('bug-ctx-action').value = '';
+    document.getElementById('bug-ctx-error').value = '';
+
+    document.getElementById('bug-modal').classList.add('open');
+    setTimeout(() => document.getElementById('bug-oneline').focus(), 60);
+  }
+
+  function showTeamArea(team) {
+    const t = CFG.teams.find(x => x.key === team);
+    const el = document.getElementById('bug-team-area');
+    if (t && t.areaPath) {
+      el.textContent = `Area path: ${t.areaPath}`;
+      el.style.color = 'var(--muted)';
+    } else {
+      el.textContent = '⚠ No area path configured for this team';
+      el.style.color = '#ffb86b';
+    }
+  }
+
+  function getSelectedEnvs() {
+    return [...document.querySelectorAll('.bug-env:checked')].map(c => c.value);
+  }
+
+  // Read the structured-context fields from Step 1. These drive the
+  // repro-steps generation directly — if a field is empty, the corresponding
+  // step is OMITTED rather than replaced with a placeholder.
+  function getStructuredContext() {
+    return {
+      screen: document.getElementById('bug-ctx-screen').value.trim(),
+      role:   document.getElementById('bug-ctx-role').value.trim(),
+      data:   document.getElementById('bug-ctx-data').value.trim(),
+      prior:  document.getElementById('bug-ctx-prior').value.trim(),
+      action: document.getElementById('bug-ctx-action').value.trim(),
+      error:  document.getElementById('bug-ctx-error').value.trim(),
+    };
+  }
+
+  // Fetch the team's current iteration from ADO and show it next to the team picker
+  async function loadTeamSprint(team) {
+    const label = document.getElementById('bug-team-sprint');
+    label.textContent = 'loading current sprint…';
+    label.style.color = 'var(--muted)';
+    try {
+      if (teamSprintCache[team]) {
+        label.textContent = `→ ${teamSprintCache[team].name}`;
+        label.style.color = '#a6f7c2';
+        return;
+      }
+      const j = await adoGet(`${CFG.org}/${CFG.project}/${encodeURIComponent(team)}/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1`);
+      const it = (j.value || [])[0];
+      if (!it) {
+        label.textContent = '⚠ no current sprint for this team';
+        label.style.color = '#ffb86b';
+        teamSprintCache[team] = null;
+        return;
+      }
+      teamSprintCache[team] = { path: it.path, id: it.id, name: it.name };
+      label.textContent = `→ ${it.name}`;
+      label.style.color = '#a6f7c2';
+    } catch (err) {
+      label.textContent = `⚠ ${err.message}`;
+      label.style.color = '#ff8a8a';
+    }
+  }
+
+  // ── Step navigation ──
+  function showStep2() {
+    document.getElementById('bug-step1').style.display = 'none';
+    document.getElementById('bug-step2').style.display = 'block';
+    document.getElementById('bug-step1-actions').style.display = 'none';
+    document.getElementById('bug-step2-actions').style.display = 'flex';
+    document.getElementById('bug-step-hdr').textContent = 'Step 2 of 2 · Review AI-generated bug report';
+    document.getElementById('bug-msg2').textContent = '';
+    renderStep2Attachments();
+  }
+
+  // Read-only preview of the attachments that will be uploaded with the bug.
+  // Mirrors the Step 1 list but with no remove button — purely confirmatory.
+  function renderStep2Attachments() {
+    const wrap = document.getElementById('bug-step2-attach-wrap');
+    const list = document.getElementById('bug-step2-attach-list');
+    const count = document.getElementById('bug-step2-attach-count');
+    if (!attachments.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    const imgN = attachments.filter(a => a.type.startsWith('image/')).length;
+    const vidN = attachments.filter(a => a.type.startsWith('video/')).length;
+    const summary = [];
+    if (imgN) summary.push(`${imgN} image${imgN === 1 ? '' : 's'}`);
+    if (vidN) summary.push(`${vidN} video${vidN === 1 ? '' : 's'}`);
+    count.textContent = `· ${summary.join(' + ')}`;
+    list.innerHTML = attachments.map(a => {
+      const isVideo = a.type.startsWith('video/');
+      const sizeLabel = a.size > 1024 * 1024 ? `${(a.size / 1024 / 1024).toFixed(1)} MB` : `${(a.size / 1024).toFixed(0)} KB`;
+      return `<div class="attach-item">
+        ${isVideo
+          ? `<video src="${a.previewUrl}" muted></video>`
+          : `<img src="${a.previewUrl}" alt="${a.name}" />`}
+        <div class="meta"><span>${isVideo ? '🎥' : '🖼'} ${a.name.length > 16 ? a.name.slice(0, 14) + '..' : a.name}</span><span>${sizeLabel}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  function backToStep1() {
+    document.getElementById('bug-step1').style.display = 'block';
+    document.getElementById('bug-step2').style.display = 'none';
+    document.getElementById('bug-step3').style.display = 'none';
+    document.getElementById('bug-step1-actions').style.display = 'flex';
+    document.getElementById('bug-step2-actions').style.display = 'none';
+    document.getElementById('bug-mfoot').style.display = 'flex';
+    document.getElementById('bug-step-hdr').textContent = 'Step 1 of 2 · Tell us what happened';
+  }
+
+  function showSuccess(bug, info) {
+    // Hide step 1 + 2 + the footer; show step 3 success card
+    document.getElementById('bug-step1').style.display = 'none';
+    document.getElementById('bug-step2').style.display = 'none';
+    document.getElementById('bug-step3').style.display = 'block';
+    document.getElementById('bug-step1-actions').style.display = 'none';
+    document.getElementById('bug-step2-actions').style.display = 'none';
+    document.getElementById('bug-mfoot').style.display = 'none';
+    document.getElementById('bug-step-hdr').textContent = `Bug #${bug.id} created · ${info.teamLabel || info.team}${info.sprint ? ' · ' + info.sprint : ''}`;
+
+    // Fill the success card
+    document.getElementById('bug-success-sub').textContent = `${info.teamLabel || info.team}${info.sprint ? '  ·  ' + info.sprint : ''}  ·  ${info.severity}  ·  ${info.attachmentCount} attachment${info.attachmentCount === 1 ? '' : 's'}`;
+    document.getElementById('bug-success-line1').textContent = bug.title;
+    const subParts = [];
+    if (info.environments && info.environments.length) subParts.push(`Environment: ${info.environments.join(' / ')}`);
+    if (info.module) subParts.push(`Module: ${info.module}`);
+    subParts.push(`Reported by ${info.reportedBy || '(unknown)'}`);
+    subParts.push(`Bug ID: <a href="${bug.url}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">#${bug.id} ↗</a>`);
+    document.getElementById('bug-success-line2').innerHTML = subParts.join('<br>');
+
+    // Wire the View in ADO link
+    const viewBtn = document.getElementById('bug-view-ado');
+    viewBtn.href = bug.url;
+
+    // Render uploaded attachment thumbnails — confirms to user what was sent
+    const wrap = document.getElementById('bug-success-attach-wrap');
+    const list = document.getElementById('bug-success-attach-list');
+    const label = document.getElementById('bug-success-attach-label');
+    const uploaded = (info.uploaded || []).filter(a => a.adoUrl);
+    if (!uploaded.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    const imgN = uploaded.filter(a => a.type.startsWith('image/')).length;
+    const vidN = uploaded.filter(a => a.type.startsWith('video/')).length;
+    const summary = [];
+    if (imgN) summary.push(`${imgN} image${imgN === 1 ? '' : 's'}`);
+    if (vidN) summary.push(`${vidN} video${vidN === 1 ? '' : 's'}`);
+    label.textContent = `Attachments uploaded (${summary.join(' + ')}) — click any to preview in ADO`;
+    list.innerHTML = uploaded.map(a => {
+      const isVideo = a.type.startsWith('video/');
+      const sizeLabel = a.size > 1024 * 1024 ? `${(a.size / 1024 / 1024).toFixed(1)} MB` : `${(a.size / 1024).toFixed(0)} KB`;
+      return `<a href="${a.adoUrl}" target="_blank" rel="noopener" class="attach-item" style="text-decoration:none;display:block">
+        ${isVideo
+          ? `<video src="${a.previewUrl}" muted></video>`
+          : `<img src="${a.previewUrl}" alt="${a.name}" />`}
+        <div class="meta"><span>${isVideo ? '🎥' : '🖼'} ${a.name.length > 16 ? a.name.slice(0, 14) + '..' : a.name}</span><span>${sizeLabel} ↗</span></div>
+      </a>`;
+    }).join('');
+  }
+
+  // Convert a Blob to base64 (data part only) for Claude vision
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result || '';
+        resolve(String(dataUrl).split(',')[1] || '');
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Call Claude with the one-liner + first image attachment for analysis.
+  async function callClaudeForBug(oneLiner, imageAtt, opts) {
+    if (!CFG.claudeKey) throw new Error('NO_AI_KEY');
+    opts = opts || {};
+    const envs = opts.envs || [];
+    const module = opts.module || '';
+    const sc = opts.structured || {};
+    const userContent = [];
+    if (imageAtt && imageAtt.type.startsWith('image/') && imageAtt.size < 4 * 1024 * 1024) {
+      try {
+        const b64 = await blobToBase64(imageAtt.blob);
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: imageAtt.type, data: b64 } });
+      } catch (_) { /* skip image on encode failure */ }
+    }
+    // Build the "Reporter-provided context" section ONLY from fields the
+    // reporter actually filled in. This is the structured ground truth.
+    const reporterCtx = [];
+    if (sc.screen) reporterCtx.push(`- Affected screen / page: ${sc.screen}`);
+    if (sc.role)   reporterCtx.push(`- User role used: ${sc.role}`);
+    if (sc.prior)  reporterCtx.push(`- Workflow before the bug: ${sc.prior}`);
+    if (sc.action) reporterCtx.push(`- Triggering action: ${sc.action}`);
+    if (sc.data)   reporterCtx.push(`- Test data / inputs: ${sc.data}`);
+    if (sc.error)  reporterCtx.push(`- Error / message seen: ${sc.error}`);
+    const reporterCtxBlock = reporterCtx.length
+      ? `REPORTER-PROVIDED CONTEXT (the only ground truth for repro steps):\n${reporterCtx.join('\n')}\n`
+      : `REPORTER-PROVIDED CONTEXT: (none — reporter only gave a one-line summary)\n`;
+
+    userContent.push({
+      type: 'text',
+      text: `You are a senior QA engineer at TR TaxProf. Your task is to create a precise, professional bug report.
+
+${imageAtt ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🖼  IMAGE ATTACHED — READ THIS FIRST (highest priority source of truth)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The screenshot/image above has been shared by the reporter. Before reading anything else:
+
+1. READ every visible text on screen — error messages, toast notifications, modal dialogs, form field values, button labels, page titles, breadcrumbs, table data, URL in address bar
+2. IDENTIFY the exact screen/page being shown (use page title, breadcrumbs, or URL if visible)
+3. NOTE the exact user role visible (profile name, role badge, logged-in user info)
+4. CAPTURE the exact error message word-for-word if visible
+5. OBSERVE the UI state — what is highlighted, what is red/broken, what is missing
+6. USE this image as the primary source for: title, repro steps, expected result, actual result, and technical observations
+
+The image is MORE RELIABLE than the one-liner summary. If the image contradicts the one-liner, trust the image.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━` : '⚠️  NO IMAGE ATTACHED — base report entirely on reporter context below.'}
+
+ONE-LINE SUMMARY (reporter's words):
+"${oneLiner}"
+
+${reporterCtxBlock}
+ENVIRONMENTS: ${envs.length ? envs.join(' / ') : '(not specified)'}
+MODULE / FEATURE AREA: ${module || '(not specified)'}
+
+BROWSER / SESSION CONTEXT (reference only — do NOT echo into repro steps):
+- URL: ${context.url}
+- Browser: ${context.userAgent}
+- Platform: ${context.platform}
+- Viewport: ${context.viewport.join('×')}
+- Reported by: ${context.reportedBy || 'unknown'}
+- Timestamp: ${context.timestamp}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TITLE FORMAT (mandatory):
+"${envs.length ? envs.join(' / ') + ' || ' : ''}${module ? module + ' || ' : ''}<professional bug detail>"
+
+TITLE RULES:
+- Title Case. Rewrite the one-liner professionally. Never copy it verbatim.
+- If image is attached: derive the title from what you SEE, not just what reporter wrote.
+- Replace vague phrases:
+    "not working"    → "Remains Unresponsive"
+    "loading issue"  → "Stuck in Infinite Loading State"
+    "crashes"        → "Crashes with Unhandled Exception"
+    "wrong value"    → "Displays Incorrect Value"
+    "doesn't save"   → "Fails to Persist Changes"
+    "blank page"     → "Renders as Blank Page"
+    "is failing"     → "Fails to Complete"
+    "can't / unable" → "Fails to [action]"
+- Include screen context and role only if NOT already in the description.
+- Under 150 characters.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REPRO STEPS RULES (critical):
+1. Steps come ONLY from: (a) the reporter-provided context above, (b) what you can SEE in the image.
+2. Do NOT invent steps not grounded in those two sources.
+3. If an error message is visible in the image, quote it EXACTLY in the Actual Result.
+4. If the image shows a specific screen state (form filled, button state, error highlight), describe it precisely.
+5. If insufficient context for a step, write: "[reviewer to confirm — not captured in report]"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPECTED / ACTUAL RULES:
+- NEVER write: "should complete successfully" / "should work as designed" / "as expected" / "without errors" alone — these are forbidden filler phrases.
+- ALWAYS be specific:
+    ✅ "After clicking Save, the invoice record should be saved and the user should be redirected to the invoice list with a success toast: 'Invoice saved successfully.'"
+    ✅ "The API should return HTTP 200 with the created record ID in the response body."
+    ✅ "The document count should increment from 2 to 3 and update in real time without page refresh."
+    ❌ "The feature should work correctly."
+    ❌ "The system should complete the operation without errors."
+- If image shows an exact error message → quote it verbatim in Actual Result.
+- If image shows a specific incorrect value → name it exactly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SEVERITY SCALE:
+1 = Critical — blocks all users, data loss, security, production outage
+2 = High — major feature broken, no workaround, affects core workflow
+3 = Medium — feature impaired but workaround exists
+4 = Low — cosmetic, typo, minor alignment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Respond ONLY with valid JSON. No markdown. No code fences. No commentary.
+
+Required shape:
+{
+  "title": "full title in mandatory format",
+  "description": "1-2 precise sentences — what broke, where, for whom. If image attached, reference what you saw.",
+  "repro": "Numbered steps. Each step is one atomic action. Drawn from reporter context + image ONLY.",
+  "expected": "Specific expected outcome — name exact UI states, API responses, messages, values.",
+  "actual": "Specific actual outcome — quote exact error text if visible in image or error field. Reference image.",
+  "note": "business rule clarification or scope note, or empty string",
+  "severity": "1 - Critical" | "2 - High" | "3 - Medium" | "4 - Low",
+  "severityRationale": "one-line justification",
+  "priority": 1 | 2 | 3 | 4,
+  "technical": "Root cause hypothesis + investigation hints. If image shows error: name the exact handler/API endpoint/component to investigate. Do NOT list browser/viewport facts."
+}`,
+    });
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': CFG.claudeKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: userContent }],
+      }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.error?.message || `Claude API ${r.status}`);
+    }
+    const j = await r.json();
+    const text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
+    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    return JSON.parse(clean);
+  }
+
+  function applyGenerated(report) {
+    generatedReport = report;
+    document.getElementById('bug-title').value = report.title || '';
+    document.getElementById('bug-description').value = report.description || '';
+    document.getElementById('bug-repro').value = report.repro || '';
+    document.getElementById('bug-expected').value = report.expected || '';
+    document.getElementById('bug-actual').value = report.actual || '';
+    document.getElementById('bug-tech').value = report.technical || '';
+    document.getElementById('bug-severity').value = report.severity || '2 - High';
+    document.getElementById('bug-priority').value = String(report.priority || 2);
+    document.getElementById('bug-sev-rationale').textContent = report.severityRationale ? `AI: ${report.severityRationale}` : '';
+  }
+
+  // ── Title enhancer (rule-based) ──────────────────────────────────────────
+  // Rewrites a casual one-liner into a professional bug title.
+  // Two transformations:
+  //   1. Vague phrase → specific professional phrase
+  //      ("not working" → "Remains Unresponsive")
+  //   2. Append context from the structured fields IF the reporter provided
+  //      them (we never invent "After User Login" out of thin air).
+  // Then apply Title Case.
+  // Order matters here — more-specific phrases first, single words last.
+  // Replacements should NOT start with the same word the user already wrote
+  // (avoids "Save Returns Returns 500"). They start mid-phrase so the
+  // original verb the user wrote can flow into them.
+  const TITLE_REWRITES = [
+    // ── Spelling/grammar corrections FIRST ──────────────────────────────
+    [/\bquestionar(?:i)?es\b/gi,       'Questionnaires'],
+    [/\bquestionar(?:i)?e\b/gi,        'Questionnaire'],
+    [/\bdelted\b/gi,                   'deleted'],
+    [/\bdel(?:el|lt)ed\b/gi,           'deleted'],
+    [/\bpinted\b/gi,                   'printed'],
+    [/\bsubmition\b/gi,                'submission'],
+    [/\bsubmited\b/gi,                 'submitted'],
+    [/\boccures\b/gi,                  'occurs'],
+    [/\boccured\b/gi,                  'occurred'],
+    [/\breciev(?:e|ed|ing)?\b/gi,      'received'],
+    [/\bsucess(?:ful(?:ly)?)?\b/gi,    'success'],
+    [/\bnaviagte[sd]?\b/gi,            'navigate'],
+    [/\brefesh(?:es|ed|ing)?\b/gi,     'refresh'],
+    [/\bvisibl?e?\b/gi,                'visible'],
+    [/\binvai?d\b/gi,                  'invalid'],
+    [/\badmin(?:istat|istrat)(?:ion|tion)\b/gi, 'Administration'],
+    [/\bclickin\b/gi,                  'clicking'],
+    [/\bpag\b/gi,                      'page'],
+
+    // ── Multi-word negations ─────────────────────────────────────────────
+    [/\b(?:is\s+failing|are\s+failing|was\s+failing)\b/gi, 'fails'],
+    [/\b(?:is\s+not\s+working|are\s+not\s+working|isn'?t\s+working|not\s+working|doesn'?t\s+work|doesn'?t\s+fire|won'?t\s+work)\b/gi, 'remains unresponsive'],
+    [/\b(?:loading\s+issue|loading\s+problem|stuck\s+loading|infinite\s+loading|never\s+loads|won'?t\s+load|not\s+loading)\b/gi, 'stuck in infinite loading state'],
+    [/\b(?:doesn'?t\s+save|won'?t\s+save|not\s+saving|fails\s+to\s+save)\b/gi, 'fails to persist changes'],
+    [/\b(?:doesn'?t\s+open|won'?t\s+open|fails\s+to\s+open)\b/gi, 'fails to open'],
+    [/\b(?:doesn'?t\s+close|won'?t\s+close)\b/gi, 'fails to close'],
+    [/\b(?:blank\s+(?:page|screen)|empty\s+(?:page|screen))\b/gi, 'renders as a blank page'],
+    [/\blogin\s+(?:issue|problem|fail(?:s|ed|ure)?)\b/gi, 'authentication fails'],
+    [/\b(?:adding|add)\s+(\w+)\s+(?:is\s+)?crashing\b/gi, '$1 creation causes application crash'],
+    [/\b(?:crashing|crashes|crashed)\b/gi, 'crashes with unhandled exception'],
+    [/\b(?:not\s+(?:showing|displaying|appearing)|doesn'?t\s+(?:show|display|appear))\b/gi, 'fails to display'],
+
+    // ── HTTP errors ──────────────────────────────────────────────────────
+    [/\binternal\s+server\s+error\b/gi, '500 Internal Server Error'],
+    [/\bserver\s+error\b/gi, '500 Internal Server Error'],
+    [/\b500\b/gi, '500 Internal Server Error'],
+    [/\bpage\s+not\s+found\b/gi, '404 Not Found'],
+    [/\bnot\s+found\b/gi, '404 Not Found'],
+    [/\b404\b/gi, '404 Not Found'],
+    [/\b(?:forbidden|unauthorized\s+access)\b/gi, '403 Forbidden'],
+    [/\b403\b/gi, '403 Forbidden'],
+    [/\b(?:timeout|timed\s+out|timing\s+out|request\s+timeout)\b/gi, 'times out'],
+
+    // ── Wrong / incorrect ────────────────────────────────────────────────
+    [/\b(?:is\s+)?(?:wrong|incorrect|inaccurate)\b\s*$/gi, 'is incorrect'],
+    [/\b(?:wrong|incorrect|inaccurate)\s+(\w+)/gi, 'incorrect $1'],
+    [/\b(\w+(?:\s+\w+)?)\s+(?:is\s+)?(?:wrong|incorrect|inaccurate)\b(?!\s+\w)/gi, '$1 is incorrect'],
+
+    // ── Performance ──────────────────────────────────────────────────────
+    [/\b(?:is\s+)?(?:slow|laggy|sluggish|takes\s+forever)\b/gi, 'exhibits performance degradation'],
+
+    // ── Crash & freeze ───────────────────────────────────────────────────
+    [/\bcrash(?:es|ed|ing)?\b/gi, 'crashes with unhandled exception'],
+    [/\b(?:hangs|freezes|frozen|locks\s+up)\b/gi, 'becomes unresponsive'],
+
+    // ── can't / unable ───────────────────────────────────────────────────
+    [/\bcan'?t\s+(\w+)/gi, 'fails to $1'],
+    [/\bunable\s+to\s+(\w+)/gi, 'fails to $1'],
+
+    // ── Misc ─────────────────────────────────────────────────────────────
+    [/\b(?:broken|broke)\b/gi, 'is non-functional'],
+    [/\b(?:disappears?|vanishes?)\b/gi, 'disappears unexpectedly'],
+    [/\bmissing\b/gi, 'is missing'],
+    [/\bnot\s+(?:redirect|redirecting)\b/gi, 'fails to redirect correctly'],
+    [/\b(?:duplicates?|duplicate\s+entries?|duplicate\s+records?)\b/gi, 'creates duplicate entries'],
+
+    // ── Filler removal (LAST) ────────────────────────────────────────────
+    [/\b(?:issue|problem|bug)\b/gi, ''],
+  ];
+
+  const TITLE_STOP_WORDS = new Set(['a','an','the','and','or','but','nor','for','so','yet',
+    'as','at','by','in','of','on','to','up','via','with','from','onto','into']);
+
+  // Known acronyms — these get re-uppercased after Title Case lowercases them.
+  // Add team-specific terms as needed.
+  const TITLE_ACRONYMS = new Set([
+    'PDF','CPA','API','URL','ID','DRL','ADO','SQL','HTTP','HTTPS','UI','UX',
+    'JSON','XML','CSV','ZIP','PNG','JPG','JPEG','GIF','AWS','CDN','CSS','DOM',
+    'IDE','NPM','OS','PR','QA','SDK','TC','UAT','VPN','YAML','TR','IRS',
+    'W2','1099','1040','1041','SSO','MFA','OTP','UTC','TBD','FAQ','SaaS',
+    'AC','UI','UX','API','REST','SOAP','TCD',
+  ]);
+
+  function _toTitleCase(str) {
+    return str.split(/(\s+)/).map((w, i) => {
+      if (/^\s+$/.test(w)) return w;
+      // Acronym lookup wins over everything
+      const stripped = w.replace(/[^\w]+$/, '').replace(/^[^\w]+/, '');
+      if (TITLE_ACRONYMS.has(stripped.toUpperCase())) {
+        // Preserve leading/trailing punctuation
+        return w.replace(stripped, stripped.toUpperCase());
+      }
+      // Preserve existing acronyms (ALL CAPS, 2+ chars)
+      if (/^[A-Z]{2,}$/.test(w)) return w;
+      // Preserve CamelCase like "TaxCaddy"
+      if (/[A-Z].*[a-z].*[A-Z]/.test(w)) return w;
+      // Preserve tokens with digits or special chars (e.g. "404", "v2.1")
+      if (/^[\d_\-./]+$/.test(w)) return w;
+      const lower = w.toLowerCase();
+      const isFirst = i === 0;
+      if (isFirst || !TITLE_STOP_WORDS.has(lower)) {
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      }
+      return lower;
+    }).join('');
+  }
+
+  // Category-aware title generator. Returns a polished detail string for
+  // categories where we can confidently rewrite the one-liner into senior-QA
+  // phrasing. Returns null for categories where the fallback (Title Case +
+  // fragment append) is still better.
+  //
+  // Pattern: produces things like
+  //   "Disconnect Button Incorrectly Displayed for Spouse Users"
+  //   "Binder Count Does Not Increment After Creating a Binder"
+  //   "Save Request Returns HTTP 500 Internal Server Error"
+  // Note: returned string is still passed through Title Case afterwards.
+  function buildPolishedTitleDetail(text, sc, cat) {
+    const stripObj = (s) => s.replace(/^(the\s+|a\s+|an\s+)/i, '').trim();
+    const trimEnd = (s) => s.replace(/\s+(?:and|but|so)$/i, '').trim();
+
+    if (cat === 'incorrect_display') {
+      const { object, preposition, condition } = extractDisplayContext(text);
+      if (!object) return null;
+      const obj = stripObj(object);
+      const where = (preposition && condition) ? ` ${preposition} ${trimEnd(condition)}` : '';
+      return `${obj} Incorrectly Displayed${where}`;
+    }
+
+    if (cat === 'missing_display') {
+      const { object, preposition, condition } = extractDisplayContext(text);
+      if (!object) return null;
+      const obj = stripObj(object);
+      const where = (preposition && condition) ? ` ${preposition} ${trimEnd(condition)}` : '';
+      return `${obj} Missing from UI${where}`;
+    }
+
+    if (cat === 'counter') {
+      const counter = extractCounterName(text);
+      const m = text.match(/\bafter\s+(.+?)(?:\s+(?:and|but|so)|\s*$|[.,])/i);
+      const trig = m ? m[1].trim() : (sc && sc.action ? sc.action.replace(/^(clicked|tapped|pressed)\s+/i, 'clicking ') : null);
+      if (!counter) return null;
+      return `${counter} Does Not Increment${trig ? ` After ${trig}` : ''}`;
+    }
+
+    if (cat === 'http5xx') {
+      const status = (text.toLowerCase().match(/\b(5\d{2})\b/) || ['500'])[0];
+      // Find a verb: "save returns 500" → "Save Request Returns 500..."
+      const verbMatch = text.match(/^([A-Za-z]+)\s+(?:returns?|throws?|fails? with|errors? with)/i);
+      const verb = verbMatch ? `${verbMatch[1]} Request` : 'API Request';
+      return `${verb} Returns HTTP ${status} Internal Server Error`;
+    }
+
+    if (cat === 'http4xx') {
+      const status = (text.toLowerCase().match(/\b(4\d{2})\b/) || ['404'])[0];
+      const name = status === '404' ? 'Not Found' : status === '403' ? 'Forbidden' : status === '401' ? 'Unauthorized' : 'Client Error';
+      const verbMatch = text.match(/^([A-Za-z]+)\s+(?:returns?|throws?|fails? with)/i);
+      const verb = verbMatch ? `${verbMatch[1]} Request` : 'Request';
+      return `${verb} Returns HTTP ${status} ${name}`;
+    }
+
+    if (cat === 'performance') {
+      const subj = extractSubject(text) || text.split(/\s+(?:is|are|takes?|loads?|loading)\b/i)[0].trim();
+      return `${stripObj(subj || 'Page')} Exhibits Significant Performance Degradation`;
+    }
+
+    if (cat === 'crash') {
+      const trigger = (text.match(/\bwhen\s+(.+?)(?:\s+(?:and|but|so)|\s*$|[.,])/i) || [])[1];
+      const screen = sc && sc.screen ? ` on ${sc.screen}` : '';
+      const action = sc && sc.action && !trigger ? ` When ${sc.action.replace(/[.!?]+$/, '')}` : (trigger ? ` When ${trigger.trim()}` : '');
+      return `Application Crashes with Unhandled Exception${screen}${action}`;
+    }
+
+    if (cat === 'unresponsive') {
+      const subj = extractSubject(text) || text.match(/^([A-Z][\w ]+?)\s+(?:does|doesn'?t|not|isn'?t)/i)?.[1];
+      if (!subj) return null;
+      return `${stripObj(subj)} Does Not Respond to User Interaction`;
+    }
+
+    if (cat === 'login') {
+      const how = text.match(/\b(sso|mfa|otp|saml|oauth)\b/i);
+      return `Authentication Fails${how ? ` for ${how[0].toUpperCase()} Sign-In` : ''}`;
+    }
+
+    if (cat === 'upload') {
+      // "X upload not working for Ys over NMB" → "X Upload Fails for Ys Over N MB"
+      const fileType = text.match(/\b(pdf|jpg|png|docx?|xlsx?|csv|zip|file)s?\b/i);
+      const sizeCond = text.match(/\b(?:over|above|greater than|more than)\s+(\d+)\s*(mb|gb|kb)\b/i);
+      const filePart = fileType ? `${fileType[1].toUpperCase()} Upload` : 'File Upload';
+      const cond = sizeCond ? ` Fails for Files Over ${sizeCond[1]} ${sizeCond[2].toUpperCase()}` : ' Fails to Complete';
+      return `${filePart}${cond}`;
+    }
+
+    if (cat === 'save') {
+      const subj = extractSubject(text);
+      return `${subj ? stripObj(subj) : 'Form Submission'} Fails to Persist Changes`;
+    }
+
+    if (cat === 'validation_display') {
+      const subj = extractSubject(text);
+      return `${subj ? stripObj(subj) : 'UI Element'} Displays Incorrect Value`;
+    }
+
+    // Payment-specific: "invoice payment is failing" / "payment fails"
+    if (/\b(payment|invoice)\b/i.test(text) && /\b(fail|failing|fails|failed|not\s+(?:work|complete|process)|crash|error)\b/i.test(text)) {
+      const type = /invoice/i.test(text) ? 'Invoice Payment' : 'Payment';
+      const screen = sc && sc.screen ? ` on ${sc.screen}` : '';
+      const role = sc && sc.role ? ` for ${sc.role}` : '';
+      return `${type} Fails to Complete${screen}${role}`;
+    }
+
+    return null;
+  }
+
+  function enhanceBugTitle(oneLiner, sc) {
+    sc = sc || {};
+    const original = String(oneLiner || '').trim().replace(/[.!?]+$/, '');
+    if (!original) return '';
+
+    // ── Category-aware polished title (the real upgrade) ──────────────────
+    const combo = (original.toLowerCase() + ' ' + (sc.error || '')).trim();
+    const cat = detectBugCategory(combo);
+    const polished = buildPolishedTitleDetail(original, sc, cat);
+    if (polished) {
+      let out = _toTitleCase(polished);
+      if (out.length > 200) out = out.slice(0, 197) + '…';
+      return out;
+    }
+
+    // ── Fall-back path (Title Case + rewrites + smart fragment append) ───
+    let text = original;
+
+    // 0. Passive-voice fix: "after get X verbed" → "after X is verbed"
+    text = text.replace(/\b(after|when|once|upon)\s+get\s+(\w+(?:\s+\w+)?)\s+(\w+ed)\b/gi, '$1 $2 is $3');
+    text = text.replace(/^get\s+(\w+(?:\s+\w+)?)\s+(\w+ed)\b/gi, '$1 is $2');
+
+    // 1. Vague → professional phrase rewriting
+    for (const [re, repl] of TITLE_REWRITES) {
+      text = text.replace(re, repl);
+    }
+    text = text.replace(/\s{2,}/g, ' ').trim();
+    // Strip dangling prepositions or conjunctions left by partial replacements
+    text = text.replace(/\s+(?:when|while|during|after|but|and|or)\s*$/, '');
+
+    // 2. Smart context fragments — only append when genuinely non-redundant
+    const lower = text.toLowerCase();
+    const fragments = [];
+
+    // ── Action fragment ──────────────────────────────────────────────────
+    if (sc.action) {
+      const action = sc.action.replace(/[.!?]+$/, '').trim();
+      const actionLower = action.toLowerCase();
+
+      // Skip if the action is already substantially represented in the text
+      // (check first 12 chars or any 8-char substring)
+      const firstWord = actionLower.split(/\s+/)[0];
+      const alreadyIn = (actionLower.length >= 8 && lower.includes(actionLower.slice(0, 10)))
+                     || (firstWord.length > 4 && lower.includes(firstWord));
+      if (!alreadyIn) {
+        // Normalise for an "After ..." / "When ..." phrase.
+        // If the action already starts with a preposition (while/when/during/after),
+        // use it directly instead of prepending another "after".
+        const startsWithPrep = /^(while|when|during|after|upon|on)\b/i.test(action);
+        let verbed = action.replace(/^get\s+(\w+(?:\s+\w+)?)\s+(\w+ed)\b/i, 'the $1 is $2');
+        verbed = verbed
+          .replace(/^([Cc])licked /, '$1licking ')
+          .replace(/^([Tt])apped /, '$1apping ')
+          .replace(/^([Pp])ressed /, '$1ressing ')
+          .replace(/^([Ee])ntered /, '$1ntering ')
+          .replace(/^([Ss])ubmitted /, '$1ubmitting ')
+          .replace(/^([Ss])elected /, '$1electing ')
+          .replace(/^([Oo])pened /, '$1pening ')
+          .replace(/^([Ss])aved /, '$1aving ')
+          .replace(/^([Uu])ploaded /, '$1ploading ')
+          .replace(/^([Pp])aying /, '$1aying ')
+          .replace(/^([Nn])avigated to /, '$1avigating to ');
+        if (startsWithPrep) {
+          fragments.push(verbed.charAt(0).toLowerCase() + verbed.slice(1));
+        } else {
+          fragments.push(`after ${verbed.charAt(0).toLowerCase() + verbed.slice(1)}`);
+        }
+      }
+    }
+
+    // ── Screen fragment ──────────────────────────────────────────────────
+    if (sc.screen) {
+      const screen = sc.screen.replace(/[.!?]+$/, '').trim();
+      const screenLower = screen.toLowerCase();
+
+      // Skip if the screen name (or its core noun) is already in the text.
+      // Compare all meaningful words (>4 chars) from the screen name.
+      const screenWords = screenLower.split(/\s+/).filter(w => w.length > 4);
+      const screenAlreadyIn = screenWords.length > 0
+        && screenWords.every(w => lower.includes(w));
+
+      if (!screenAlreadyIn) {
+        const lastWord = (screen.match(/\S+$/) || [''])[0].toLowerCase();
+        const looksLikeUiSuffix = /(?:screen|scrn|page|pag|view|tab|dialog|modal|panel|ui)$/i.test(lastWord);
+        const isMultiWord = /\s/.test(screen.trim());
+        const suffix = (looksLikeUiSuffix || isMultiWord) ? '' : ' screen';
+        fragments.push(`on ${screen}${suffix}`);
+      }
+    }
+
+    // ── Role fragment ────────────────────────────────────────────────────
+    if (sc.role) {
+      const role = sc.role.replace(/[.!?]+$/, '').trim();
+      const roleLower = role.toLowerCase();
+      // Only append role if it is NOT already in the title text.
+      // Compare the first significant word (>3 chars) of the role.
+      const roleCore = roleLower.split(/\s+/).find(w => w.length > 3) || roleLower;
+      const roleAlreadyIn = lower.includes(roleCore);
+      if (!roleAlreadyIn) {
+        fragments.push(`for ${role}`);
+      }
+    }
+
+    if (fragments.length) text += ' ' + fragments.join(' ');
+
+    // 3. Title Case the whole thing
+    text = _toTitleCase(text);
+
+    if (text.length > 200) text = text.slice(0, 197) + '…';
+    return text;
+  }
+
+  // ── Expected / Actual generator (senior-QA quality) ─────────────────────
+  // Picks a bug CATEGORY from the one-liner + error context, then produces
+  // a paragraph-style Expected and Actual that reads like a human wrote it.
+  // Each category is tuned: counters get "should increment", 5xx gets
+  // "should return 200 with the expected payload", perf gets "should respond
+  // within 2-3s", etc. No "function as designed" filler.
+  function generateExpectedActual({ text, lower, sc, featureObject, atts }) {
+    const errorText = (sc && sc.error) ? String(sc.error).trim() : '';
+    const errorLower = errorText.toLowerCase();
+    const combo = (lower + ' ' + errorLower).trim();
+    const subject = featureObject || extractSubject(text) || 'the affected feature';
+    const trigger = sc && sc.action ? sc.action.replace(/[.!?]+$/, '').trim() : extractTrigger(text);
+    const triggerPhrase = trigger ? normaliseTriggerPhrase(trigger) : null;
+
+    // Detect category — order matters. First match wins.
+    const cat = detectBugCategory(combo);
+
+    let expected, actual;
+    switch (cat) {
+      case 'counter': {
+        const counterSubject = subject.includes('count') || /count|total|number/i.test(text)
+          ? extractCounterName(text) || subject
+          : extractCounterName(text) || `${subject} count`;
+        const trig = triggerPhrase || 'the relevant action is completed';
+        expected = `After ${trig}, the ${counterSubject} should update to reflect the new state — incrementing by 1 (or by the count of items added) and accurately representing the data in the underlying source. The update should be visible without requiring a manual page refresh.`;
+        actual = `After ${trig}, the ${counterSubject} does NOT update. The displayed value remains at its previous state even though the underlying record was created/changed successfully. This indicates either the count is not being recalculated, the UI is not subscribing to the change event, or a caching layer is serving a stale value.`;
+        break;
+      }
+      case 'http5xx': {
+        const status = (combo.match(/\b(50\d|5\d{2})\b/) || ['500'])[0];
+        expected = `The ${triggerPhrase ? `request triggered by ${triggerPhrase}` : 'API request'} should complete with an HTTP 200 OK response, returning the expected payload. ${subject} should display/process the response without errors.`;
+        actual = `The request returns HTTP ${status} ${status === '500' ? 'Internal Server Error' : 'Server Error'}, indicating a server-side failure. ${errorText ? `Error captured: "${errorText}". ` : ''}No usable response body is returned to the client, leaving ${subject} in a broken state.`;
+        break;
+      }
+      case 'http4xx': {
+        const status = (combo.match(/\b(40\d|4\d{2})\b/) || ['404'])[0];
+        const name = status === '404' ? 'Not Found' : status === '403' ? 'Forbidden' : status === '401' ? 'Unauthorized' : 'Client Error';
+        expected = `The requested resource for ${subject} should be accessible to the current user and the system should return HTTP 200 OK with the expected content.`;
+        actual = `The system returns HTTP ${status} ${name}. ${status === '404' ? 'The requested resource is unreachable, deleted, or the URL routing is misconfigured.' : status === '403' ? 'The user lacks permission for this resource — verify role and token scope.' : status === '401' ? 'The user is not authenticated — token may be expired or missing.' : ''}`;
+        break;
+      }
+      case 'performance': {
+        const trig = triggerPhrase || `loading ${subject}`;
+        expected = `${cap(subject)} should respond within acceptable performance thresholds — typically under 2 seconds for interactive operations and under 5 seconds for data-heavy views. The UI should provide a loading indicator if any operation exceeds 500ms.`;
+        actual = `${cap(subject)} exhibits significant performance degradation when ${trig}. Response times are well beyond acceptable thresholds, causing user-perceptible delays and potentially appearing frozen. ${errorText ? `Observed: "${errorText}".` : 'Investigation should focus on long tasks, N+1 calls, or large payloads.'}`;
+        break;
+      }
+      case 'crash': {
+        expected = `${cap(subject)} should handle the user action gracefully — completing the operation successfully, or displaying a clear error message with recovery options if it fails. No unhandled exceptions should propagate to the user.`;
+        actual = `${cap(subject)} crashes with an unhandled exception when the user performs the described action. ${errorText ? `Captured: "${errorText}". ` : ''}The user flow is broken and recovery requires a page refresh.`;
+        break;
+      }
+      case 'validation_display': {
+        expected = `${cap(subject)} should display the correct value based on the underlying data — matching the source of truth (database, API response, or computed result) at all times. Any change to the underlying data should be reflected in the UI within one render cycle.`;
+        actual = `${cap(subject)} displays an incorrect value that does not match the underlying data. ${errorText ? `Observed: "${errorText}". ` : ''}The discrepancy suggests either stale state, a serialisation/parsing bug, or a missing data refresh.`;
+        break;
+      }
+      case 'unresponsive': {
+        const trig = triggerPhrase ? `When ${triggerPhrase}, ` : '';
+        expected = `${cap(subject)} should respond to user interaction — triggering the bound handler, providing visual feedback (loading state, success toast, or validation error), and updating the UI/data state as designed.`;
+        actual = `${trig}${cap(subject)} does NOT respond. No visible feedback, no error, no state change. ${errorText ? `Observed: "${errorText}". ` : 'This typically indicates the event handler is not bound, is throwing silently, or a parent element is intercepting the event.'}`;
+        break;
+      }
+      case 'login': {
+        expected = `Authentication should complete successfully for valid credentials; the user should be redirected to the post-login landing page with their role/permissions correctly applied.`;
+        actual = `Authentication fails. ${errorText ? `Error: "${errorText}". ` : 'The user cannot reach the application. '}Investigate token issuance, SSO callback URL, and clock skew between client and identity provider.`;
+        break;
+      }
+      case 'upload': {
+        expected = `The selected file should upload successfully, appear in the relevant list/view immediately, and be retrievable for preview or download. Progress and final success state should be clearly indicated to the user.`;
+        actual = `The file upload process fails to complete successfully. ${errorText ? `Captured: "${errorText}". ` : 'No success indication is shown and the file does not appear in the expected list. '}Investigate file size limits, allowed MIME types, multipart parsing, and storage write permissions.`;
+        break;
+      }
+      case 'save': {
+        expected = `Changes made by the user should be persisted to the backend upon save/submit. A success indicator should be displayed; reloading the page should show the saved state.`;
+        actual = `Changes are not persisted. ${errorText ? `Captured: "${errorText}". ` : ''}Either the save request never fires, the backend rejects it silently, or the response succeeds but the database write fails. Page reload reverts to pre-change state.`;
+        break;
+      }
+      case 'incorrect_display': {
+        const { object, preposition, condition } = extractDisplayContext(text);
+        const obj = object || subject;
+        const prep = preposition || (triggerPhrase ? 'when' : null);
+        const cond = condition || (triggerPhrase || null);
+        const where = (prep && cond) ? ` ${prep} ${cond}` : '';
+        const objCap = cap(obj);
+        expected = `The ${obj} should NOT be displayed${where}. Per the business rule for this scenario, this UI element should be hidden, disabled, or removed from view — the visibility logic should check the relevant role/state before rendering it.`;
+        actual = `${objCap} is being displayed${where}, even though it should be suppressed in this context. This indicates the visibility/permission check is either missing, evaluating the wrong condition, or rendering before the gating state is loaded.${errorText ? ` Captured: "${errorText}".` : ''}`;
+        break;
+      }
+      case 'missing_display': {
+        const { object, preposition, condition } = extractDisplayContext(text);
+        const obj = object || subject;
+        const prep = preposition || (triggerPhrase ? 'when' : null);
+        const cond = condition || (triggerPhrase || null);
+        const where = (prep && cond) ? ` ${prep} ${cond}` : '';
+        const objCap = cap(obj);
+        expected = `The ${obj} should be displayed${where}. Per the AC, this element is required in this state and the user is unable to proceed without it.`;
+        actual = `${objCap} is missing / not rendered${where}. The user has no way to perform the expected action — likely caused by a faulty conditional render, a stale state, or the data not being loaded by the time the component mounts.${errorText ? ` Captured: "${errorText}".` : ''}`;
+        break;
+      }
+      default: {
+        const trig = triggerPhrase ? `when ${triggerPhrase}` : '';
+
+        // If we have a captured error, generate a specific expected/actual pair
+        // from it rather than falling back to a placeholder.
+        if (errorText) {
+          // Try to extract a clean message from a JSON error payload
+          // e.g. {"id":-1,"value":"","error":"Only one spouse is allowed per account."}
+          let cleanError = errorText;
+          try {
+            const parsed = JSON.parse(errorText);
+            cleanError = parsed.error || parsed.message || parsed.msg
+                      || parsed.errorMessage || parsed.description
+                      || parsed.detail || errorText;
+          } catch (_) {
+            // Not JSON — use as-is but strip the raw object wrapper if present
+            const msgMatch = errorText.match(/"(?:error|message|msg|description)"\s*:\s*"([^"]+)"/i);
+            if (msgMatch) cleanError = msgMatch[1];
+          }
+
+          // Determine if the error is a business-rule validation (not a server crash)
+          const isBusinessRule = /only one|already exists|not allowed|limit|maximum|minimum|cannot|must be|required|invalid|duplicate|in use|taken|restricted|permission|not authorized|exceeds/i.test(cleanError);
+
+          if (isBusinessRule) {
+            // Business rule violation: expected = action completes successfully
+            // OR the system should surface the rule as a clear validation message
+            const actionDesc = sc && sc.action
+              ? sc.action.replace(/[.!?]+$/, '').toLowerCase()
+              : `perform the action`;
+            expected = `The system should either:\n1. Allow the user to ${actionDesc} successfully when valid conditions are met, OR\n2. Display a clear, user-friendly inline validation message explaining the business rule restriction — before the user submits, not as a raw API error.\n\nThe error message should be presented in the UI as a readable warning (e.g. a toast notification or inline field error), not as a raw JSON payload.`;
+            actual   = `The action fails with API error: "${cleanError}". ${text.charAt(0).toUpperCase() + text.slice(1).replace(/[.!?]+$/, '')}. The raw error response is surfaced directly to the user with no user-friendly messaging.`;
+          } else {
+            // Generic error with captured text
+            expected = `The operation should complete successfully${trig ? ` ${trig}` : ''}. ${cap(subject)} should respond without errors and update its state to reflect the result.`;
+            actual   = `The operation fails. ${cap(text.replace(/[.!?]+$/, ''))}. Captured error: "${cleanError}".`;
+          }
+        } else {
+          // No error text and no category match — generate the best possible
+          // expected from the action and subject rather than a placeholder.
+          const actionVerb = sc && sc.action
+            ? sc.action.replace(/[.!?]+$/, '').toLowerCase()
+            : null;
+
+          if (actionVerb) {
+            expected = `${cap(subject)} should allow the user to ${actionVerb} without errors. The operation should complete successfully, the UI should update to reflect the change, and a success confirmation should be displayed.`;
+          } else {
+            // Last resort — derive expected from the one-liner by negating the symptom
+            // "unable to X" → "should be able to X"
+            // "X is not working" → "X should work as designed"
+            let derived = text
+              .replace(/\bunable to\b/gi, 'should be able to')
+              .replace(/\bfails? to\b/gi, 'should successfully')
+              .replace(/\bnot working\b/gi, 'should work as designed')
+              .replace(/\bcrash(?:es|ed|ing)?\b/gi, 'should complete without crashing')
+              .replace(/\bdoesn'?t\s+(\w+)\b/gi, 'should $1')
+              .replace(/\bwon'?t\s+(\w+)\b/gi, 'should $1');
+            expected = cap(derived.replace(/[.!?]+$/, '')) + '. The UI should display a success state and update all relevant sections accordingly.';
+          }
+          actual = `${cap(text)}${/[.!?]$/.test(text) ? '' : '.'}`;
+        }
+        break;
+      }
+    }
+
+    // Append a "see attached" tail to Actual when images/videos are attached.
+    if (atts && atts.length) {
+      const imgs = atts.filter(a => a.type.startsWith('image/')).length;
+      const vids = atts.filter(a => a.type.startsWith('video/')).length;
+      const refs = [];
+      if (imgs) refs.push(`${imgs} screenshot${imgs === 1 ? '' : 's'}`);
+      if (vids) refs.push(`${vids} screen recording${vids === 1 ? '' : 's'}`);
+      if (refs.length) actual += `\n\nSee ${refs.join(' and ')} attached to this bug for on-screen evidence.`;
+    }
+
+    return { expected, actual };
+  }
+
+  function detectBugCategory(combo) {
+    // Order matters — more-specific feature areas first so a generic
+    // "not working" doesn't steal an upload/login/save bug.
+    if (/\b(not increasing|isn'?t increasing|stays (?:the )?same|not updating|doesn'?t update|not refreshing|stale (?:count|value|number)|wrong count|count is off|count incorrect)\b/.test(combo)) return 'counter';
+    if (/\b(50\d|5\d{2}|internal server error|server error)\b/.test(combo)) return 'http5xx';
+    if (/\b(40\d|4\d{2}|forbidden|unauthorized|not found|page not found)\b/.test(combo)) return 'http4xx';
+    if (/\b(crash(?:es|ed|ing)?|exception|stack trace|typeerror|null pointer|undefined is not)\b/.test(combo)) return 'crash';
+    if (/\b(slow|laggy|sluggish|takes forever|times? out|timeout|performance|hang(?:s|ing)?|freeze(?:s|d)?)\b/.test(combo)) return 'performance';
+    if (/\b(displays (?:wrong|incorrect)|wrong value|incorrect value|shows (?:wrong|incorrect)|stale data)\b/.test(combo)) return 'validation_display';
+    // "X displayed/shown when shouldn't be" — UI visibility bug
+    if (/\b(not\s+display(?:ing|ed)?|not\s+show(?:ing|n)?|missing\s+from\s+(?:ui|screen|view)|hidden\s+when\s+(?:it\s+)?should)\b/.test(combo)) return 'missing_display';
+    if (/\b(?:is\s+|are\s+)?display(?:ing|ed)?\b|\b(?:is\s+|are\s+)?show(?:ing|n)\b/.test(combo) && /\b(button|icon|link|option|menu|field|column|message|toast|banner|popup|modal|dialog|tab|action|disconnect|delete|remove|edit|cancel)\b/.test(combo)) return 'incorrect_display';
+    if (/\b(login|signin|sign in|auth(?:enticat|orizat)|sso|mfa|otp)\b/.test(combo)) return 'login';
+    if (/\b(upload|drag.?and.?drop|file picker|attach(?:ment|ing)?)\b/.test(combo)) return 'upload';
+    if (/\b(save|submit|persist|commit)\b/.test(combo) && /\b(fail|not (?:saving|persisting|working)|doesn'?t (?:save|submit|work)|won'?t (?:save|submit))\b/.test(combo)) return 'save';
+    if (/\b(not working|doesn'?t (?:work|fire|respond|trigger)|does\s+not\s+(?:work|fire|respond|trigger)|no response|unresponsive)\b/.test(combo)) return 'unresponsive';
+    return 'default';
+  }
+
+  // Extract the visible UI element + preposition + condition from various
+  // display-pattern phrases. Returns { object, preposition, condition }.
+  // Handles both word orders:
+  //   "[actor] displaying X for Y"  → object=X, prep=for, condition=Y
+  //   "X not displaying for Y"      → object=X, prep=for, condition=Y
+  //   "missing X for Y"             → object=X, prep=for, condition=Y
+  function extractDisplayContext(text) {
+    const t = String(text || '').trim().replace(/[.!?]+$/, '');
+
+    // 1. "X not displaying/showing/visible/rendered [prep Y]"
+    let m = t.match(/^(.+?)\s+(?:is\s+|are\s+)?not\s+(?:displaying|displayed|showing|shown|visible|rendered|appearing)(?:\s+(for|to|when|after|on|in)\s+(.+))?$/i);
+    if (m) {
+      // Strip leading actor like "The save button" → "Save button"; keep object as-is otherwise
+      let obj = m[1].trim();
+      obj = obj.replace(/^(?:the\s+)/i, '');
+      return { object: obj, preposition: m[2] || null, condition: m[3] ? m[3].trim() : null };
+    }
+
+    // 2. "[actor] displaying|showing X [prep Y]"
+    m = t.match(/(?:displaying|showing|displays?|shows?)\s+(.+?)(?:\s+(for|to|when|after|on|in)\s+(.+))?$/i);
+    if (m) {
+      return { object: m[1].trim(), preposition: m[2] || null, condition: m[3] ? m[3].trim() : null };
+    }
+
+    // 3. "missing X [prep Y]"
+    m = t.match(/^(?:missing|absent)\s+(.+?)(?:\s+(for|to|when|after|on|in)\s+(.+))?$/i);
+    if (m) {
+      return { object: m[1].trim(), preposition: m[2] || null, condition: m[3] ? m[3].trim() : null };
+    }
+
+    return { object: null, preposition: null, condition: null };
+  }
+
+  function extractSubject(text) {
+    // Limit the noun-prefix to 0-1 extra words (so subjects stay 1-3 words).
+    // Removed ambiguous suffixes like "value/number/total/message" — those
+    // appear inside descriptive phrases ("displays wrong value") and were
+    // causing the regex to greedy-match the whole sentence as the subject.
+    const m = text.match(/^([A-Za-z][\w]*(?:\s+[A-Za-z][\w]*){0,1})\s+(button|screen|page|field|dropdown|form|dialog|modal|tab|icon|link|grid|table|list|menu|panel|tile|widget|column|count|counter|chart|report|toast|notification|checkbox|radio|toggle|switch)\b/i);
+    if (m) return `${m[1]} ${m[2].toLowerCase()}`;
+    return null;
+  }
+
+  function extractTrigger(text) {
+    const m = text.match(/\b(?:after|when|while|during|upon|on)\s+([^,.;]+?)(?:\s+(?:and|but|so|because)|\s*$|[.,])/i);
+    return m ? m[1].trim() : null;
+  }
+
+  function normaliseTriggerPhrase(action) {
+    // "Clicked Reset" / "Clicking Reset" / "Click Reset" → "clicking Reset"
+    let lower = action.charAt(0).toLowerCase() + action.slice(1);
+
+    // "get X verbed" → "the X is verbed" (passive-voice fix for casual
+    // English like "after get spouse connected" → "after the spouse is connected")
+    lower = lower.replace(/^get\s+(\w+(?:\s+\w+)?)\s+(\w+ed)\b/i, 'the $1 is $2');
+
+    return lower
+      .replace(/^clicked /i, 'clicking ')
+      .replace(/^tapped /i, 'tapping ')
+      .replace(/^pressed /i, 'pressing ')
+      .replace(/^entered /i, 'entering ')
+      .replace(/^submitted /i, 'submitting ')
+      .replace(/^selected /i, 'selecting ')
+      .replace(/^opened /i, 'opening ')
+      .replace(/^saved /i, 'saving ')
+      .replace(/^uploaded /i, 'uploading ')
+      .replace(/^navigated to /i, 'navigating to ')
+      .replace(/^created /i, 'creating ');
+  }
+
+  function extractCounterName(text) {
+    const m = text.match(/\b(\w+(?:\s+\w+)?)\s+(?:count|counter|total|number)\b/i);
+    return m ? `${m[1]} ${m[0].split(/\s+/).pop().toLowerCase()}` : null;
+  }
+
+  function invertNegative(text) {
+    // Best-effort: flip "not X" / "doesn't X" → "X"
+    return text
+      .replace(/\bis\s+not\s+(\w+)/gi, 'is $1')
+      .replace(/\bnot\s+(\w+ing)\b/gi, '$1')
+      .replace(/\b(?:doesn'?t|does not|won'?t|will not|can'?t|cannot)\s+(\w+)/gi, '$1s')
+      .replace(/\bfails?\s+to\s+(\w+)/gi, '$1s')
+      .replace(/\bbroken\b/gi, 'works as designed')
+      .toLowerCase();
+  }
+
+  function cap(s) { s = String(s || '').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+  // ── Smart Bug Analyzer — understands intent, never echoes input ────────────
+  // Thinks like a senior QA engineer: reads the one-liner, understands what
+  // broke, who was affected, and what should have happened instead.
+  function smartBugAnalyzer(oneLiner, ctx, atts, opts) {
+    opts = opts || {};
+    const sc = opts.structured || {};
+
+    // ── Step 1: Clean and normalise the raw input ──────────────────────────
+    const SPELL_FIXES = [
+      [/\bquestionar(?:i)?es\b/gi, 'Questionnaires'],
+      [/\bquestionar(?:i)?e\b/gi,  'Questionnaire'],
+      [/\bdelted\b/gi,  'deleted'],   [/\bdel(?:el|lt)ed\b/gi, 'deleted'],
+      [/\bpinted\b/gi,  'printed'],   [/\bsubmition\b/gi, 'submission'],
+      [/\bsubmited\b/gi,'submitted'], [/\boccures\b/gi,   'occurs'],
+      [/\boccured\b/gi, 'occurred'],  [/\breciev\w*\b/gi, 'received'],
+      [/\bsucess\b/gi,  'success'],   [/\bnaviagte\w*\b/gi,'navigate'],
+      [/\brefesh\b/gi,  'refresh'],   [/\badmin(?:istat|istrat)(?:ion|tion)\b/gi, 'Administration'],
+      [/\bpag\b/gi,     'page'],      [/\bclickin\b/gi,   'clicking'],
+      [/\bvisibl?e?\b/gi,'visible'],  [/\binvai?d\b/gi,   'invalid'],
+    ];
+    let text = (oneLiner || '').trim();
+    for (const [re, fix] of SPELL_FIXES) text = text.replace(re, fix);
+    const lower = text.toLowerCase();
+
+    // ── Step 2: Understand WHAT broke, WHO was affected, WHAT they were doing
+    //    Extract these from the structured fields + the cleaned one-liner.
+    const role   = sc.role   || (/\bcpa\b/i.test(lower) ? 'CPA' : /\btaxpayer\b/i.test(lower) ? 'Taxpayer' : /\bfirm\s*admin\b/i.test(lower) ? 'Firm Admin' : /\bapi\b/i.test(lower) ? 'API user' : 'user');
+    const screen = sc.screen || extractScreenFromText(lower);
+    const action = sc.action || extractActionFromText(lower);
+    const prior  = sc.prior  || '';
+
+    // ── Step 3: Understand the SCENARIO — what was the pre-condition?
+    //    For this specific case pattern: "When X is already Y and Z, doing A fails"
+    //    Extract the precondition clause and the action that fails.
+    const whenMatch = lower.match(/when\s+(.+?)\s+(?:and\s+.+?\s+)?(?:now\s+)?(?:add|create|edit|submit|open|click|do|perform|try)/i);
+    const afterMatch = lower.match(/after\s+(.+?),?\s+(?:now\s+)?(?:add|create|edit|submit|open|click|do|perform|try)/i);
+    const scenarioPrecondition = whenMatch ? whenMatch[1].trim() : afterMatch ? afterMatch[1].trim() : prior;
+
+    // ── Step 4: Severity ───────────────────────────────────────────────────
+    let severity = '2 - High';
+    let severityRationale = 'Core feature broken — users cannot complete their workflow';
+    const sevMap = [
+      { sev:'1 - Critical', why:'Application crash / data loss / security breach / complete outage',
+        re:/\b(crash|data loss|corruption|security|breach|outage|locked out|production down)\b/ },
+      { sev:'2 - High',     why:'Major feature broken with no workaround',
+        re:/\b(fail|fails|cannot|can\'t|unable|broken|does not work|doesn\'t work|error|exception|500|404)\b/ },
+      { sev:'3 - Medium',   why:'Feature impaired but workaround exists',
+        re:/\b(slow|incorrect|wrong|missing|inconsistent|intermittent|partial|sometimes)\b/ },
+      { sev:'4 - Low',      why:'Cosmetic / minor UX issue',
+        re:/\b(typo|alignment|colour|color|spacing|tooltip|font|cosmetic)\b/ },
+    ];
+    for (const t of sevMap) {
+      if (t.re.test(lower)) { severity = t.sev; severityRationale = t.why; break; }
+    }
+    const priority = parseInt(severity, 10);
+
+    // ── Step 5: Repro steps — from structured fields only, never invented ──
+    const reproLines = [];
+    let n = 1;
+    if (role   && role !== 'user') reproLines.push(`${n++}. Log in as ${role}.`);
+    if (screen) reproLines.push(`${n++}. Navigate to ${screen}.`);
+    if (prior || scenarioPrecondition) {
+      const pre = (prior || scenarioPrecondition).replace(/[.!?]+$/, '');
+      if (!reproLines.some(l => l.toLowerCase().includes(pre.toLowerCase().slice(0, 20))))
+        reproLines.push(`${n++}. ${cap(pre)}.`);
+    }
+    if (sc.data) reproLines.push(`${n++}. Use the following test data: ${sc.data}.`);
+    if (action)  reproLines.push(`${n++}. ${cap(action.replace(/[.!?]+$/, ''))}.`);
+    const repro = reproLines.length
+      ? reproLines.join('\n')
+      : `1. [Reviewer to confirm] Reproduction context was not captured in the report. Please ask the reporter for: affected screen, user role, preconditions, test data, and the exact action that triggered the issue.`;
+
+    // ── Step 6: Understand the BUG SEMANTICS for expected/actual ──────────
+    //    Parse: "fails to add new questions when questionnaire is already printed and deleted"
+    //    → FEATURE: "Add New Questions to Questionnaire"
+    //    → PRECONDITION: "Questionnaire is already printed and deleted"
+    //    → FAILURE: user cannot add new questions
+    const { expected, actual } = buildSmartExpectedActual(text, lower, sc, role, screen, action, scenarioPrecondition, atts);
+
+    // ── Step 7: Description — written like a QA engineer, not a copy-paste ─
+    const description = buildSmartDescription(text, lower, sc, role, screen, action, scenarioPrecondition, severity);
+
+    // ── Step 8: Title ──────────────────────────────────────────────────────
+    const detail = buildSmartTitle(text, lower, sc, role, screen, action, scenarioPrecondition, opts);
+    const titleParts = [];
+    if (opts.envs && opts.envs.length) titleParts.push(opts.envs.join(' / '));
+    if (opts.module) titleParts.push(opts.module);
+    titleParts.push(detail);
+    let title = titleParts.join(' || ');
+    if (title.length > 240) title = title.slice(0, 237) + '…';
+
+    // ── Step 9: Technical observations ────────────────────────────────────
+    const techLines = [];
+    const errLower = (sc.error || '').toLowerCase();
+    const combo = lower + ' ' + errLower;
+    if (/5\d\d|500/.test(combo))      techLines.push('Server-side 5xx suspected — capture the failing request URL, HTTP status code, and response body from the Network tab. Check server logs at the timestamp above.');
+    if (/404|not found/.test(combo))  techLines.push('Endpoint or resource not found — verify the route exists and the referenced ID is valid.');
+    if (/exception|typeerror|console|stack/.test(combo)) techLines.push('Front-end exception suspected — capture full stack trace, file/line, and any preceding console warnings.');
+    if (/permission|403|unauthorized|401/.test(combo))   techLines.push('Authorization issue — verify the role has the required permission scope and the token claims are correct.');
+    if (/print|questionnaire|pdf/i.test(combo))          techLines.push('Check whether the "printed" or "deleted" state flag on the Questionnaire record is being validated before the add-question action is invoked. The API may be enforcing a state machine that prevents modifications to printed/deleted questionnaires.');
+    if (sc.error) techLines.push(`Error captured by reporter: ${sc.error}`);
+    const technical = techLines.join('\n');
+
+    return { title, description, repro, expected, actual, severity, severityRationale, priority, technical };
+  }
+
+  // ── Helper: extract screen name from free text ─────────────────────────
+  function extractScreenFromText(lower) {
+    if (/questionnaire/i.test(lower)) return 'CPA Questionnaires';
+    if (/invoice/i.test(lower))       return 'Invoices';
+    if (/document request|drl/i.test(lower)) return 'Document Request List';
+    if (/binder/i.test(lower))        return 'Binder';
+    if (/signature/i.test(lower))     return 'Signature';
+    if (/tax return|delivery/i.test(lower)) return 'Tax Return Delivery';
+    if (/additional user/i.test(lower)) return 'Additional Users';
+    if (/settings|administrative/i.test(lower)) return 'Administrative Settings';
+    if (/dashboard|overview/i.test(lower)) return 'Dashboard / Overview';
+    return '';
+  }
+
+  // ── Helper: extract the triggering action from free text ──────────────
+  function extractActionFromText(lower) {
+    const patterns = [
+      /(?:now\s+)?(?:try(?:ing)?\s+to\s+|attempt(?:ing)?\s+to\s+)?(?:add|adding)\s+(new\s+)?(questions?|records?|items?|entries?)\b/i,
+      /(?:click(?:ing|ed)?\s+(?:on\s+)?)(add|submit|save|delete|print|create)\s*(new\s+)?(\w+)/i,
+      /(?:submit(?:ting|ted)?)\s+(\w+)/i,
+      /(?:print(?:ing|ed)?)\s+(questionnaire|form|document)/i,
+    ];
+    for (const p of patterns) {
+      const m = lower.match(p);
+      if (m) return m[0].replace(/^(?:now\s+)?(?:try(?:ing)?\s+to\s+)?/i, '').trim();
+    }
+    return '';
+  }
+
+  // ── Build expected/actual from semantic understanding — never echoes input
+  function buildSmartExpectedActual(text, lower, sc, role, screen, action, precondition, atts) {
+    const errText  = sc.error || '';
+    const errClean = (function() {
+      try {
+        const p = JSON.parse(errText);
+        return p.error || p.message || p.msg || p.errorMessage || null;
+      } catch {
+        const m = errText.match(/"(?:error|message|msg)"\s*:\s*"([^"]+)"/i);
+        return m ? m[1] : (errText ? errText.replace(/[{}""]/g,'').slice(0,120) : null);
+      }
+    })();
+    const feat    = sc.screen || screen || 'Questionnaire';
+    const roleRef = sc.role   || role   || 'the user';
+    const isPrinted = /\bprint(?:ed|ing)?\b/.test(lower);
+    const isDeleted = /\bdelet(?:ed|ing)?\b/.test(lower);
+    const isAddNew  = /\badd(?:ing)?\s+new\b/.test(lower);
+    const isPayment = /\bpayment|paying\b/.test(lower);
+    let expected = '', actual = '';
+
+    if (isAddNew && (isPrinted || isDeleted)) {
+      const state = isPrinted && isDeleted ? 'printed and deleted' : isPrinted ? 'printed' : 'deleted';
+      expected = `After the ${feat} has been ${state}, the system should handle the "Add New Questions" action by:\n`
+        + `1. Allowing the ${roleRef} to add new questions if the business rules permit modifications to a ${state} ${feat}, OR\n`
+        + `2. Displaying a clear, user-friendly validation message such as: "This Questionnaire has been ${state} and is locked for editing. Please create a new version to add questions."\n\n`
+        + `The ${roleRef} should never encounter an unhandled error. The system must always provide a clear next step.`;
+      actual = errClean
+        ? `The "Add New Questions" action fails when the ${feat} is ${state}. System returns: "${errClean}". No user-friendly message is displayed — the ${roleRef} has no actionable guidance.`
+          + (atts && atts.length ? '\n\nSee screenshot attached.' : '')
+        : `The "Add New Questions" action fails when the ${feat} has been ${state}. The ${roleRef} receives no success confirmation and no meaningful error message. The question is not added.`
+          + (atts && atts.length ? '\n\nSee screenshot attached.' : '');
+      return { expected, actual };
+    }
+    if (isPayment) {
+      expected = `When a ${roleRef} initiates a payment on the ${feat}, the system should:\n1. Process the transaction successfully\n2. Display a success confirmation: "Payment submitted successfully"\n3. Update the invoice status to "Paid" immediately in the UI`;
+      actual = errClean
+        ? `Invoice payment fails. System returns: "${errClean}". The payment is not processed and the invoice status remains unchanged.` + (atts && atts.length ? ' See screenshot attached.' : '')
+        : `Invoice payment fails to complete. No success confirmation is displayed and the invoice status remains unchanged.` + (atts && atts.length ? ' See screenshot attached.' : '');
+      return { expected, actual };
+    }
+    expected = `The operation performed by the ${roleRef} on ${feat} should:\n1. Complete successfully without errors\n2. Display a success confirmation\n3. Reflect the change immediately without requiring a page refresh\n4. Persist the change after a page reload`;
+    actual = errClean
+      ? `The operation fails. System returns: "${errClean}".` + (atts && atts.length ? ' See screenshot attached.' : '')
+      : `The operation fails to complete. No success confirmation is displayed and the expected outcome is not achieved.` + (atts && atts.length ? ' See screenshot attached.' : '');
+    return { expected, actual };
+  }
+
+  // ── Build professional description — structured, never echoes raw input ──
+  function buildSmartDescription(text, lower, sc, role, screen, action, precondition, severity) {
+    const parts   = [];
+    const feat    = sc.screen || screen || 'the application';
+    const roleRef = sc.role   || role   || 'the user';
+    const isPrinted = /\bprint(?:ed|ing)?\b/.test(lower);
+    const isDeleted = /\bdelet(?:ed|ing)?\b/.test(lower);
+    const isAddNew  = /\badd(?:ing)?\s+new\b/.test(lower);
+    const isPayment = /\bpayment|paying\b/.test(lower);
+
+    if (isAddNew && isPrinted && isDeleted) {
+      parts.push(`A ${roleRef} is unable to add new questions to the ${feat} once it has been printed and subsequently deleted.`);
+    } else if (isAddNew && isPrinted) {
+      parts.push(`A ${roleRef} is unable to add new questions to the ${feat} after it has been printed.`);
+    } else if (isAddNew && isDeleted) {
+      parts.push(`A ${roleRef} is unable to add new items to the ${feat} after it has been deleted.`);
+    } else if (isPayment) {
+      parts.push(`A ${roleRef} is unable to complete a payment on the ${feat}.`);
+    } else {
+      parts.push(`A ${roleRef} encountered a defect in the ${feat}.`);
+    }
+
+    const ctx = [];
+    if (sc.role   || role)   ctx.push(`Role: ${sc.role || role}`);
+    if (sc.screen || screen) ctx.push(`Screen: ${sc.screen || screen}`);
+    if (isPrinted && isDeleted) ctx.push('Precondition: The Questionnaire has been printed and then deleted');
+    else if (isPrinted)         ctx.push('Precondition: The Questionnaire has been printed');
+    else if (sc.prior)          ctx.push(`Precondition: ${sc.prior.replace(/[.!?]+$/, '')}`);
+    if (sc.data) ctx.push(`Test data: ${sc.data}`);
+    if (ctx.length) parts.push(ctx.join(' · ') + '.');
+
+    if (severity === '1 - Critical') {
+      parts.push('Impact: Critical — users are completely blocked. This may affect production data or system availability.');
+    } else if (severity === '2 - High') {
+      parts.push('Impact: High — core workflow is broken. Users cannot complete the intended action and there is no apparent workaround.');
+    }
+    return parts.join(' ');
+  }
+
+  function extractJsonError(errText) {
+    try {
+      const parsed = JSON.parse(errText);
+      return parsed.error || parsed.message || parsed.msg || parsed.errorMessage || null;
+    } catch {
+      const m = (errText || '').match(/"(?:error|message|msg)"\s*:\s*"([^"]+)"/i);
+      return m ? m[1] : null;
+    }
+  }
+
+  // ── Build a clean professional title — NEVER echo raw input ───────────
+  // Always builds from understood semantics: WHAT failed, WHERE, CONDITION
+  function buildSmartTitle(text, lower, sc, role, screen, action, precondition, opts) {
+
+    // ── Understand the failure semantics ──────────────────────────────────
+    const isAddFail     = /\badd(?:ing)?\b/.test(lower) && /\bfail|unable|can.?t|not able\b/.test(lower);
+    const isAddNew      = /\badd(?:ing)?\s+new\b/.test(lower);
+    const isPrinted     = /\bprint(?:ed|ing)?\b/.test(lower);
+    const isDeleted     = /\bdelet(?:ed|ing|ion)?\b/.test(lower);
+    const isPayment     = /\bpayment|paying\b/.test(lower);
+    const isInvoice     = /\binvoice\b/.test(lower);
+    const isLogin       = /\blogin|sign.?in|auth\b/.test(lower);
+    const isCrash       = /\bcrash|exception|unhandled\b/.test(lower);
+    const isNotLoad     = /\bnot.{0,10}load|fail.{0,10}load|blank.{0,10}page\b/.test(lower);
+    const isNotSave     = /\bnot.{0,10}sav|fail.{0,10}sav\b/.test(lower);
+
+    // Extract WHAT the user is trying to do (the target noun)
+    // e.g. "add new questions" → "New Questions"
+    //      "add new questionnaire" → "Questionnaire"
+    let targetNoun = '';
+    const addNounMatch = lower.match(/\badd(?:ing)?\s+new\s+([\w]+(?:\s+[\w]+)?)\b/);
+    if (addNounMatch) {
+      // Spell-fix and capitalise the extracted noun
+      targetNoun = addNounMatch[1]
+        .replace(/questionar(?:i)?es?/gi, 'Questions')
+        .replace(/\bq\b/gi, 'Questions')
+        .trim();
+      targetNoun = targetNoun.charAt(0).toUpperCase() + targetNoun.slice(1);
+    }
+
+    // Extract WHICH screen/feature from structured fields (not from raw text)
+    const featureRef = sc.screen || screen || '';
+
+    // ── Build title from semantics only, no raw input ─────────────────────
+
+    // Case 1: Add new X fails — with print+delete precondition
+    if ((isAddNew || isAddFail) && isPrinted && isDeleted) {
+      const noun = targetNoun || 'Questions';
+      const feat = featureRef || 'Questionnaire';
+      return `Unable to Add ${noun} to ${feat} After It Has Been Printed and Deleted`;
+    }
+
+    // Case 2: Add new X fails — only printed (no delete)
+    if ((isAddNew || isAddFail) && isPrinted && !isDeleted) {
+      const noun = targetNoun || 'Questions';
+      const feat = featureRef || 'Questionnaire';
+      return `Unable to Add ${noun} to ${feat} After It Has Been Printed`;
+    }
+
+    // Case 3: Add new X fails — only deleted
+    if ((isAddNew || isAddFail) && isDeleted && !isPrinted) {
+      const noun = targetNoun || 'Items';
+      const feat = featureRef || 'Record';
+      return `Unable to Add ${noun} to ${feat} After Deletion`;
+    }
+
+    // Case 4: Generic add fails
+    if (isAddFail) {
+      const noun = targetNoun || 'Items';
+      const feat = featureRef || 'Record';
+      return `Adding ${noun} Fails in ${feat}`;
+    }
+
+    // Case 5: Payment / Invoice
+    if (isPayment || isInvoice) {
+      const feat = featureRef || 'Invoice';
+      return `Invoice Payment Fails to Complete on ${feat}`;
+    }
+
+    // Case 6: Crash
+    if (isCrash) {
+      const feat = featureRef ? ` on ${featureRef}` : '';
+      return `Application Crashes with Unhandled Exception${feat}`;
+    }
+
+    // Case 7: Login
+    if (isLogin) {
+      return `Authentication Fails — ${role || 'User'} Unable to Log In`;
+    }
+
+    // Case 8: Page not loading
+    if (isNotLoad) {
+      const feat = featureRef || 'Page';
+      return `${feat} Fails to Load`;
+    }
+
+    // Case 9: Not saving
+    if (isNotSave) {
+      const feat = featureRef || 'Form';
+      return `Changes Made in ${feat} Fail to Save`;
+    }
+
+    // Fallback — use enhanceBugTitle but pass corrected text, not raw input
+    const correctedText = text
+      .replace(/questionar(?:i)?es/gi, 'Questionnaires')
+      .replace(/questionar(?:i)?e\b/gi, 'Questionnaire')
+      .replace(/\bdelted\b/gi, 'deleted')
+      .replace(/\bpinted\b/gi, 'printed');
+    return enhanceBugTitle(correctedText, sc);
+  }
+  function applyManualFallback(oneLiner) {
+    // Use the smart analyzer — same behaviour and quality bar as the AC parser
+    // for test cases. Works completely offline. Uses the structured-context
+    // fields as the source of truth for repro steps; never invents filler.
+    const envs = getSelectedEnvs();
+    const module = document.getElementById('bug-module').value.trim();
+    const structured = getStructuredContext();
+    const report = smartBugAnalyzer(oneLiner, context, attachments, { envs, module, structured });
+    generatedReport = report;
+    document.getElementById('bug-title').value = report.title;
+    document.getElementById('bug-description').value = report.description;
+    document.getElementById('bug-repro').value = report.repro;
+    document.getElementById('bug-expected').value = report.expected;
+    document.getElementById('bug-actual').value = report.actual;
+    document.getElementById('bug-tech').value = report.technical;
+    document.getElementById('bug-severity').value = report.severity;
+    document.getElementById('bug-priority').value = String(report.priority);
+    document.getElementById('bug-sev-rationale').textContent = report.severityRationale ? `Analyzer: ${report.severityRationale}` : '';
+
+    const banner = document.getElementById('bug-ai-banner');
+    banner.innerHTML = '<span style="font-size:18px">🧠</span><span><b>Smart Bug Analyzer</b> drafted this report from your text only — it <b>cannot see screenshots</b>. Fields are generated from keyword patterns in your one-liner. <b style="color:#fff1b0">For a precise, image-aware report: add an Anthropic API key to <code>CFG.claudeKey</code> in the HTML.</b> Every field below is editable — please review carefully before submitting.</span>';
+    banner.style.background = 'linear-gradient(135deg,rgba(241,196,15,.10),rgba(108,140,255,.10))';
+    banner.style.borderColor = 'rgba(241,196,15,.4)';
+  }
+
+  async function generateAndProceed() {
+    const oneLiner = document.getElementById('bug-oneline').value.trim();
+    const msg = document.getElementById('bug-msg');
+    if (!oneLiner || oneLiner.length < 8) {
+      msg.style.color = '#ff8a8a';
+      msg.textContent = 'Describe the bug in at least one short sentence.';
+      return;
+    }
+    if (!document.getElementById('bug-team').value) {
+      msg.style.color = '#ff8a8a';
+      msg.textContent = 'Pick the team this bug belongs to.';
+      return;
+    }
+
+    if (!CFG.claudeKey) {
+      // No Claude key — use the offline Smart Bug Analyzer. Add a brief
+      // delay so the user sees the analysis is intentional (and not just
+      // skipping AI silently).
+      const btn = document.getElementById('bug-generate');
+      btn.disabled = true; btn.textContent = '🧠 Analyzing…';
+      msg.style.color = 'var(--muted)';
+      msg.textContent = 'Smart bug analyzer reading your summary…';
+      await new Promise(r => setTimeout(r, 350));
+      applyManualFallback(oneLiner);
+      showStep2();
+      btn.disabled = false; btn.textContent = '✨ Generate with AI';
+      return;
+    }
+
+    const btn = document.getElementById('bug-generate');
+    btn.disabled = true; btn.textContent = '✨ Analyzing…';
+    msg.style.color = 'var(--muted)';
+    msg.textContent = attachments.length
+      ? 'AI is analyzing your screenshot and writing the bug report…'
+      : 'AI is generating the bug report from your one-liner…';
+
+    try {
+      const firstImg = attachments.find(a => a.type.startsWith('image/'));
+      const envs = getSelectedEnvs();
+      const module = document.getElementById('bug-module').value.trim();
+      const structured = getStructuredContext();
+      const report = await callClaudeForBug(oneLiner, firstImg, { envs, module, structured });
+      applyGenerated(report);
+      // Reset the AI banner to the AI variant in case it was switched to fallback
+      const banner = document.getElementById('bug-ai-banner');
+      const hadImage = !!attachments.find(a => a.type.startsWith('image/'));
+      banner.innerHTML = hadImage
+        ? '<span style="font-size:18px">🖼✨</span><span><b>Claude analyzed your screenshot</b> — the report below is based on what the AI read directly from your image (error messages, UI state, screen, role). Review and edit before submitting — every field is editable.</span>'
+        : '<span style="font-size:18px">✨</span><span><b>Claude generated the report</b> from your one-liner and context. Review and edit anything before submitting — all fields are editable. <b style="color:#fff1b0">Tip: attach a screenshot for a more precise report.</b></span>';
+      banner.style.background = 'linear-gradient(135deg,rgba(108,140,255,.15),rgba(138,92,255,.15))';
+      banner.style.borderColor = 'rgba(108,140,255,.4)';
+      showStep2();
+    } catch (err) {
+      if (err.message === 'NO_AI_KEY') {
+        applyManualFallback(oneLiner);
+        showStep2();
+      } else {
+        msg.style.color = '#ff8a8a';
+        msg.textContent = `AI generation failed: ${err.message}. You can still proceed manually — click "Generate with AI" again or fill in fields by hand.`;
+        // Fall back to manual editing if user clicks again
+        applyManualFallback(oneLiner);
+        showStep2();
+      }
+    } finally {
+      btn.disabled = false; btn.textContent = '✨ Generate with AI';
+    }
+  }
+
+  async function regenerateAI() {
+    const btn = document.getElementById('bug-regen');
+    const oneLiner = document.getElementById('bug-oneline').value.trim();
+    if (!oneLiner) { toast('One-line summary is required (go back to Step 1)', 'error'); return; }
+
+    if (!CFG.claudeKey) {
+      // Re-run the smart analyzer
+      btn.disabled = true; btn.textContent = '🧠 Re-analyzing…';
+      await new Promise(r => setTimeout(r, 250));
+      applyManualFallback(oneLiner);
+      toast('Bug report re-analyzed', 'success');
+      btn.disabled = false; btn.textContent = '✨ Regenerate';
+      return;
+    }
+
+    btn.disabled = true; btn.textContent = '✨ Regenerating…';
+    try {
+      const firstImg = attachments.find(a => a.type.startsWith('image/'));
+      const envs = getSelectedEnvs();
+      const module = document.getElementById('bug-module').value.trim();
+      const structured = getStructuredContext();
+      const report = await callClaudeForBug(oneLiner, firstImg, { envs, module, structured });
+      applyGenerated(report);
+      toast('Bug report regenerated', 'success');
+    } catch (err) {
+      toast(`Regenerate failed: ${err.message}`, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = '✨ Regenerate';
+    }
+  }
+
+  function close() {
+    document.getElementById('bug-modal').classList.remove('open');
+    if (recorder && recorder.state !== 'inactive') stopRecording();
+    // Clean up blob URLs
+    attachments.forEach(a => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+    attachments = [];
+  }
+
+  function renderContext() {
+    const el = document.getElementById('bug-ctx-preview');
+    el.innerHTML = Object.entries(context).map(([k, v]) =>
+      `<div><b style="color:var(--accent)">${k}</b>: ${Array.isArray(v) ? v.join('×') : v}</div>`
+    ).join('');
+  }
+
+  function renderAttachments() {
+    const list = document.getElementById('bug-attach-list');
+    if (!attachments.length) { list.innerHTML = ''; return; }
+    list.innerHTML = attachments.map((a, i) => {
+      const isVideo = a.type.startsWith('video/');
+      const kb = (a.size / 1024).toFixed(0);
+      const sizeLabel = a.size > 1024 * 1024 ? `${(a.size / 1024 / 1024).toFixed(1)} MB` : `${kb} KB`;
+      return `<div class="attach-item">
+        ${isVideo
+          ? `<video src="${a.previewUrl}" muted></video>`
+          : `<img src="${a.previewUrl}" alt="${a.name}" />`}
+        <button class="x" data-idx="${i}" title="Remove">×</button>
+        <div class="meta"><span>${isVideo ? '🎥' : '🖼'} ${a.name.length > 16 ? a.name.slice(0, 14) + '..' : a.name}</span><span>${sizeLabel}</span></div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.x').forEach(b => b.addEventListener('click', e => {
+      const i = +b.dataset.idx;
+      URL.revokeObjectURL(attachments[i].previewUrl);
+      attachments.splice(i, 1);
+      renderAttachments();
+    }));
+  }
+
+  function addFile(file) {
+    if (!file) return;
+    if (!/^(image|video)\//.test(file.type)) {
+      toast(`Skipped "${file.name}" — only images and videos are supported`, 'error');
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    attachments.push({ blob: file, name: file.name || `paste-${Date.now()}.png`, type: file.type, size: file.size, previewUrl });
+    renderAttachments();
+  }
+
+  async function startRecording() {
+    if (recorder && recorder.state === 'recording') { stopRecording(); return; }
+    try {
+      recorderStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 24 }, audio: false });
+      recordedChunks = [];
+      recorder = new MediaRecorder(recorderStream, { mimeType: 'video/webm;codecs=vp9' });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const file = new File([blob], `screen-${Date.now()}.webm`, { type: 'video/webm' });
+        addFile(file);
+        document.getElementById('bug-drop').classList.remove('recording');
+        document.getElementById('bug-record').textContent = '🎥 Record screen';
+      };
+      // If user stops sharing via browser UI
+      recorderStream.getVideoTracks()[0].addEventListener('ended', stopRecording);
+      recorder.start();
+      document.getElementById('bug-drop').classList.add('recording');
+      document.getElementById('bug-record').textContent = '⏹ Stop recording';
+      // Hard cap at 60s to keep payloads sane
+      setTimeout(() => { if (recorder && recorder.state === 'recording') stopRecording(); }, 60_000);
+    } catch (err) {
+      toast(err.name === 'NotAllowedError' ? 'Recording cancelled' : `Recording failed: ${err.message}`, 'error');
+    }
+  }
+
+  function stopRecording() {
+    try {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+      if (recorderStream) recorderStream.getTracks().forEach(t => t.stop());
+    } catch (_) {}
+    recorder = null;
+    recorderStream = null;
+  }
+
+  // ── ADO helpers specific to the bug flow ──
+  // Upload a binary attachment directly to ADO. Returns {id, url}.
+  //
+  // IMPORTANT: ADO's POST /wit/attachments rejects MIME types like image/png
+  // with HTTP 415 — it ONLY accepts application/octet-stream for raw binary
+  // uploads. The original file.type is preserved by ADO from the fileName
+  // extension server-side, so we don't lose any info by always sending octet.
+  async function adoUploadAttachment(file) {
+    const url = `https://dev.azure.com/${CFG.org}/${CFG.project}/_apis/wit/attachments`
+      + `?fileName=${encodeURIComponent(file.name || `paste-${Date.now()}.png`)}&api-version=7.1`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader(),
+        'Accept': 'application/json',
+        'Content-Type': 'application/octet-stream',
+        'X-TFS-FedAuthRedirect': 'Suppress',
+      },
+      body: file,
+    });
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      throw new Error(b.message || `Attachment upload failed (${r.status})`);
+    }
+    return r.json();
+  }
+
+  // WIQL search for similar open bugs (duplicate hint).
+  async function adoFindSimilarBugs(title) {
+    const safe = title.replace(/'/g, "''").slice(0, 80);
+    const body = {
+      query: `SELECT [System.Id] FROM WorkItems `
+        + `WHERE [System.WorkItemType] = 'Bug' `
+        + `AND [System.State] <> 'Closed' AND [System.State] <> 'Removed' `
+        + `AND [System.Title] CONTAINS '${safe}' `
+        + `ORDER BY [System.ChangedDate] DESC`,
+    };
+    const wiqlUrl = `https://dev.azure.com/${CFG.org}/${CFG.project}/_apis/wit/wiql?api-version=7.1`;
+    const r = await fetch(wiqlUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader(),
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-TFS-FedAuthRedirect': 'Suppress',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    const ids = (j.workItems || []).slice(0, 5).map(w => w.id);
+    if (!ids.length) return [];
+    const d = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems`
+      + `?ids=${ids.join(',')}&fields=System.Id,System.Title,System.State&api-version=7.1`);
+    return (d.value || []).map(wi => ({
+      id: wi.id, title: wi.fields['System.Title'] || '', state: wi.fields['System.State'] || '',
+    }));
+  }
+
+  // Build a developer-friendly HTML description block.
+  function buildDescriptionHtml(opts) {
+    const { expected, actual, story, testCaseId, failingStep, ctx } = opts;
+    const esc = (s) => String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const br = (s) => esc(s).replace(/\r?\n/g, '<br/>');
+    const envRows = [
+      ['URL', ctx.url], ['Browser', ctx.userAgent], ['Platform', ctx.platform],
+      ['Viewport', ctx.viewport ? `${ctx.viewport[0]}×${ctx.viewport[1]}` : ''],
+      ['Environment', ctx.environment || 'QA'], ['Reported at', ctx.timestamp],
+      ['Reported by', ctx.reportedBy || ''],
+    ].filter(([, v]) => v);
+
+    const sections = [];
+    if (expected || actual) {
+      sections.push(`<h3>Expected Result</h3><p>${br(expected || '(not provided)')}</p>`);
+      sections.push(`<h3>Actual Result</h3><p>${br(actual || '(not provided)')}</p>`);
+    }
+    sections.push(`<h3>Environment</h3><table border="1" style="border-collapse:collapse">${
+      envRows.map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`).join('')
+    }</table>`);
+
+    const links = [];
+    if (story) links.push(`User Story #${story.id} — ${esc(story.title || '')}`);
+    if (testCaseId) links.push(`Originating Test Case #${testCaseId}`);
+    if (failingStep) links.push(`Failing step: ${esc(String(failingStep))}`);
+    if (links.length) sections.push(`<h3>References</h3><ul>${links.map(l => `<li>${l}</li>`).join('')}</ul>`);
+    return sections.join('\n');
+  }
+
+  function reproToHtml(text) {
+    const esc = String(text || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return esc.split(/\r?\n/).map(l => `<div>${l || '&nbsp;'}</div>`).join('');
+  }
+
+  // Live duplicate-bug hint (debounced)
+  let dupTimer = null;
+  function checkDuplicates(title) {
+    clearTimeout(dupTimer);
+    if (!title || title.trim().length < 10) {
+      document.getElementById('bug-similar').style.display = 'none';
+      return;
+    }
+    dupTimer = setTimeout(async () => {
+      try {
+        const bugs = await adoFindSimilarBugs(title);
+        const el = document.getElementById('bug-similar');
+        if (!bugs.length) { el.style.display = 'none'; return; }
+        const links = bugs.slice(0, 3).map(b =>
+          `<a href="https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${b.id}" target="_blank" rel="noopener">#${b.id} (${b.state})</a>`
+        ).join(', ');
+        el.innerHTML = `⚠ ${bugs.length} similar open bug${bugs.length === 1 ? '' : 's'} found: ${links}. Make sure this isn't a duplicate.`;
+        el.style.display = 'block';
+      } catch (_) { /* silent */ }
+    }, 800);
+  }
+
+  async function submit() {
+    const title = document.getElementById('bug-title').value.trim();
+    const description = document.getElementById('bug-description').value.trim();
+    const severity = document.getElementById('bug-severity').value;
+    const priority = document.getElementById('bug-priority').value;
+    const repro = document.getElementById('bug-repro').value.trim();
+    const expected = document.getElementById('bug-expected').value.trim();
+    const actual = document.getElementById('bug-actual').value.trim();
+    const technical = document.getElementById('bug-tech').value.trim();
+    const team = document.getElementById('bug-team').value;
+    const msg = document.getElementById('bug-msg2');
+
+    if (!title) { msg.style.color = '#ff8a8a'; msg.textContent = 'Title is required.'; return; }
+    if (!severity) { msg.style.color = '#ff8a8a'; msg.textContent = 'Severity is required.'; return; }
+    if (!team) { msg.style.color = '#ff8a8a'; msg.textContent = 'A team must be selected on step 1.'; return; }
+
+    const submitBtn = document.getElementById('bug-submit');
+    submitBtn.disabled = true; submitBtn.textContent = 'Creating bug…';
+    msg.style.color = 'var(--muted)'; msg.textContent = attachments.length
+      ? `Uploading ${attachments.length} attachment${attachments.length === 1 ? '' : 's'} to ADO…`
+      : 'Creating bug in Azure DevOps…';
+
+    // Resolve team area path from the hardcoded mapping (per-team, deterministic).
+    const teamCfg = CFG.teams.find(t => t.key === team);
+    const areaPath = teamCfg?.areaPath || null;
+
+    // Resolve current sprint (still per-team auto-detect — cache or fetch).
+    let iterPath = teamSprintCache[team]?.path;
+    if (!iterPath) {
+      try {
+        const j = await adoGet(`${CFG.org}/${CFG.project}/${encodeURIComponent(team)}/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1`);
+        const it = (j.value || [])[0];
+        if (it) { iterPath = it.path; teamSprintCache[team] = { path: it.path, id: it.id, name: it.name }; }
+      } catch (_) { /* fall through */ }
+    }
+
+    try {
+      // Step 1 — Upload every attachment FIRST so we can embed image URLs
+      // inline in the ReproSteps HTML, matching the team's reference format.
+      // Retry once on transient failure (network blip, ADO 503).
+      const uploaded = [];
+      for (let i = 0; i < attachments.length; i++) {
+        const a = attachments[i];
+        msg.textContent = `Uploading attachment ${i + 1}/${attachments.length}: ${a.name}…`;
+        let lastErr = null;
+        for (let tryNum = 1; tryNum <= 2; tryNum++) {
+          try {
+            const att = await adoUploadAttachment(a.blob);
+            uploaded.push({ ...a, adoUrl: att.url });
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (tryNum === 1) {
+              msg.textContent = `Retrying ${a.name} (attempt 2/2)…`;
+              await new Promise(r => setTimeout(r, 700));
+            }
+          }
+        }
+        if (lastErr) {
+          toast(`Attachment "${a.name}" failed twice: ${lastErr.message}`, 'error');
+          uploaded.push({ ...a, adoUrl: null });
+        }
+      }
+
+      // Hard-fail the submit if ALL attachments failed and the reporter expected them.
+      if (attachments.length > 0 && uploaded.every(a => !a.adoUrl)) {
+        msg.style.color = '#ff8a8a';
+        msg.textContent = `All ${attachments.length} attachment upload${attachments.length === 1 ? '' : 's'} failed — fix the network issue or remove the attachments and try again. The bug was NOT created.`;
+        submitBtn.disabled = false; submitBtn.textContent = 'Create Bug';
+        return;
+      }
+
+      // Step 2 — Build the reference-format ReproSteps HTML with embedded images
+      msg.textContent = 'Creating bug in Azure DevOps…';
+      const reproHtml = buildReferenceReproHtml({
+        description, repro, expected, actual, note: generatedReport?.note || '',
+        technical, severityRationale: generatedReport?.severityRationale,
+        attachments: uploaded, ctx: context, aiGenerated: !!generatedReport,
+      });
+
+      const ops = [
+        { op: 'add', path: '/fields/System.Title',                    value: title },
+        { op: 'add', path: '/fields/Microsoft.VSTS.TCM.ReproSteps',   value: reproHtml },
+        { op: 'add', path: '/fields/Microsoft.VSTS.Common.Severity',  value: severity },
+        { op: 'add', path: '/fields/Microsoft.VSTS.Common.Priority',  value: parseInt(priority, 10) },
+        { op: 'add', path: '/fields/System.Tags',                     value: 'Not Automated' },
+      ];
+      if (iterPath) ops.push({ op: 'add', path: '/fields/System.IterationPath', value: iterPath });
+      if (areaPath) ops.push({ op: 'add', path: '/fields/System.AreaPath',      value: areaPath });
+
+      const created = await adoPatch(`${CFG.org}/${CFG.project}/_apis/wit/workitems/$Bug?api-version=7.1`, ops);
+      const bugId = created.id;
+      const bugUrl = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${bugId}`;
+
+      // Step 3 — Link every uploaded attachment as AttachedFile so they also
+      // appear in the bug's Attachments tab (not just inline in description).
+      for (let i = 0; i < uploaded.length; i++) {
+        const a = uploaded[i];
+        if (!a.adoUrl) continue;
+        try {
+          const fresh = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${bugId}?api-version=7.1`);
+          await adoPatch(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${bugId}?api-version=7.1`, [
+            { op: 'test', path: '/rev', value: fresh.rev },
+            { op: 'add',  path: '/relations/-', value: {
+              rel: 'AttachedFile',
+              url: a.adoUrl,
+              attributes: { comment: a.name },
+            }},
+          ]);
+        } catch (err) {
+          toast(`Linking "${a.name}" failed: ${err.message}`, 'error');
+        }
+      }
+
+      // Persist this bug to the history list (for the "Bug History" view)
+      const sprintName = teamSprintCache[team]?.name || null;
+      const envs = getSelectedEnvs();
+      const moduleVal = document.getElementById('bug-module').value.trim();
+      const historyEntry = {
+        id: bugId,
+        title,
+        team,
+        teamLabel: teamCfg?.label || team,
+        sprint: sprintName,
+        state: 'New',
+        environments: envs,
+        module: moduleVal || null,
+        severity,
+        createdBy: context.reportedBy || '(unknown)',
+        createdAt: new Date().toISOString(),
+        url: bugUrl,
+        attachmentCount: uploaded.filter(a => a.adoUrl).length,
+      };
+      BugHistory.add(historyEntry);
+      // Refresh the Bug History view if it's currently rendered
+      if (typeof renderBugHistory === 'function') renderBugHistory();
+
+      toast(`Bug #${bugId} created in ${teamCfg?.label || team}${sprintName ? ' · ' + sprintName : ''} · ${historyEntry.attachmentCount} attachment${historyEntry.attachmentCount === 1 ? '' : 's'}`, 'success');
+
+      // Show the success state with a prominent "View in ADO" button instead
+      // of auto-closing the modal. Passes the uploaded attachments so the
+      // success screen can render preview thumbnails with direct ADO links.
+      showSuccess({ id: bugId, title, url: bugUrl }, {
+        teamLabel: teamCfg?.label || team,
+        team, sprint: sprintName,
+        severity, attachmentCount: historyEntry.attachmentCount,
+        environments: envs, module: moduleVal,
+        reportedBy: context.reportedBy,
+        uploaded,
+      });
+      submitBtn.disabled = false; submitBtn.textContent = 'Create Bug';
+    } catch (err) {
+      msg.style.color = '#ff8a8a'; msg.textContent = 'Failed: ' + err.message;
+      submitBtn.disabled = false; submitBtn.textContent = 'Create Bug';
+    }
+  }
+
+  // Build the ReproSteps HTML in the EXACT format used by the team's
+  // reference bug #5454220:
+  //   <div font='Segoe UI'>{description}</div><br>
+  //   <div font='Segoe UI'>
+  //     <h3><strong>Steps to Reproduce:</strong></h3>
+  //     <ol><li>...</li></ol>
+  //   </div>
+  //   <div font='Segoe UI'>
+  //     <h3><strong>Actual Result:</strong></h3>   <ul><li>...</li></ul>
+  //   </div>
+  //   <div font='Segoe UI'>
+  //     <h3><strong>Expected Result:</strong></h3> <ul><li>...</li></ul>
+  //     <div><b>Note :</b> ...</div>
+  //   </div>
+  //   <img src='<ado attachment url>' alt='Image'/><br>
+  function buildReferenceReproHtml(opts) {
+    const { description, repro, expected, actual, note, technical, severityRationale, attachments, ctx, aiGenerated } = opts;
+    const esc = (s) => String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const FONT = "font-family:'Segoe UI';";
+    const wrap = (inner) => `<div style="${FONT}">${inner}</div>`;
+
+    // Convert text into <ol> or <ul> based on numbered/bulleted prefix.
+    function toList(text, listType /* 'ol' | 'ul' */) {
+      const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) return '';
+      // Strip leading numbering/bullets — the <li> handles ordering
+      const items = lines.map(l => l.replace(/^(?:\d+[\.\)]\s*|[-*•·]\s*)/, ''));
+      return `<${listType}>${items.map(i => `<li>${esc(i)}</li>`).join('')}</${listType}>`;
+    }
+
+    const out = [];
+
+    // 1. Intro / description (no header, just a Segoe-UI paragraph)
+    if (description) out.push(wrap(esc(description)));
+    if (description) out.push('<br>');
+
+    // 2. Steps to Reproduce — ordered list
+    const reproList = toList(repro, 'ol');
+    if (reproList) {
+      out.push(wrap(`<h3><strong>Steps to Reproduce:</strong></h3>${reproList}`));
+    }
+
+    // 3. Actual Result — unordered list
+    const actualList = toList(actual, 'ul');
+    if (actualList) {
+      out.push(wrap(`<h3><strong>Actual Result:</strong></h3>${actualList}`));
+    }
+
+    // 4. Expected Result — unordered list + optional Note inside the same div
+    const expectedList = toList(expected, 'ul');
+    if (expectedList || note) {
+      const inner = [`<h3><strong>Expected Result:</strong></h3>${expectedList || ''}`];
+      if (note && note.trim()) {
+        inner.push(`<div><b>Note :</b>&nbsp;<span><b>${esc(note.trim())}</b></span><br><br></div>`);
+      }
+      out.push(wrap(inner.join('')));
+    }
+
+    // 5. Technical Observations — only if user filled it in
+    if (technical && technical.trim()) {
+      out.push(wrap(`<h3><strong>Technical Observations:</strong></h3><p>${esc(technical).replace(/\r?\n/g, '<br/>')}</p>`));
+    }
+
+    // 6. Severity rationale — small footer
+    if (severityRationale) {
+      out.push(wrap(`<p style="color:#666;font-size:12px;font-style:italic">Severity rationale: ${esc(severityRationale)}</p>`));
+    }
+
+    // 7. AI badge (small, non-intrusive)
+    if (aiGenerated) {
+      out.push(wrap(`<p style="background:#eef2ff;padding:6px 10px;border-radius:4px;display:inline-block;font-size:12px"><i>✨ Generated by the Smart Bug Analyzer from a one-line summary. Reviewer edited before submission.</i></p>`));
+    }
+
+    // 8. Embedded images (from the uploaded attachments) — matches the
+    //    reference bug's inline <img src="<ado-attachment-url>"/><br> pattern.
+    for (const a of (attachments || [])) {
+      if (a.adoUrl && a.type && a.type.startsWith('image/')) {
+        out.push(`<img src="${esc(a.adoUrl)}" alt="Image"/>`);
+        out.push('<br>');
+      }
+    }
+
+    return out.join('');
+  }
+
+  return {
+    open, close,
+    addFile, startRecording, stopRecording,
+    checkDuplicates,
+    submit,
+    generateAndProceed, regenerateAI, backToStep1,
+    loadTeamSprint, showTeamArea,
+  };
+})();
+
+// ── Wire bug modal events ──
+document.getElementById('bug-close').addEventListener('click', BugUI.close);
+document.getElementById('bug-cancel').addEventListener('click', BugUI.close);
+document.getElementById('bug-modal').addEventListener('click', e => {
+  if (e.target.id === 'bug-modal') BugUI.close();
+});
+
+// Step 1 → Step 2 (AI generate)
+document.getElementById('bug-generate').addEventListener('click', BugUI.generateAndProceed);
+
+// Step 2 controls
+document.getElementById('bug-back').addEventListener('click', BugUI.backToStep1);
+document.getElementById('bug-regen').addEventListener('click', BugUI.regenerateAI);
+document.getElementById('bug-submit').addEventListener('click', BugUI.submit);
+
+// Step 3 (success) controls
+document.getElementById('bug-success-done').addEventListener('click', BugUI.close);
+document.getElementById('bug-report-another').addEventListener('click', () => BugUI.open());
+
+// Team change → reload sprint label + update area path display
+document.getElementById('bug-team').addEventListener('change', e => {
+  BugUI.loadTeamSprint(e.target.value);
+  BugUI.showTeamArea(e.target.value);
+});
+
+// Recording + file input
+document.getElementById('bug-record').addEventListener('click', BugUI.startRecording);
+document.getElementById('bug-file').addEventListener('change', e => {
+  [...e.target.files].forEach(f => BugUI.addFile(f));
+  e.target.value = '';
+});
+
+// Live duplicate-bug hint runs on the one-line input (step 1)
+document.getElementById('bug-oneline').addEventListener('input', e => BugUI.checkDuplicates(e.target.value));
+
+// Drag-drop on the drop zone
+const drop = document.getElementById('bug-drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); drop.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); e.stopPropagation(); drop.classList.remove('dragover');
+}));
+drop.addEventListener('drop', e => {
+  [...e.dataTransfer.files].forEach(f => BugUI.addFile(f));
+});
+
+// Clipboard paste (only when modal is open)
+document.addEventListener('paste', e => {
+  if (!document.getElementById('bug-modal').classList.contains('open')) return;
+  const items = [...(e.clipboardData?.items || [])];
+  for (const item of items) {
+    if (item.kind === 'file' && /^image\//.test(item.type)) {
+      const f = item.getAsFile();
+      if (f) {
+        const named = new File([f], `screenshot-${Date.now()}.png`, { type: f.type });
+        BugUI.addFile(named);
+        e.preventDefault();
+      }
+    }
+  }
+});
+
+// Ctrl+Enter: on step 1 → generate; on step 2 → submit
+document.getElementById('bug-modal').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    const onStep2 = document.getElementById('bug-step2').style.display !== 'none';
+    if (onStep2) BugUI.submit();
+    else BugUI.generateAndProceed();
+  }
+});
+
+// Sidebar entries for bug features are handled by the unified #sidenav handler above:
+//   - "Report a Bug"     → opens BugUI modal (intercepted before view-switching)
+//   - "Bug History"      → swaps the main content to the bug history panel
 </script>
 </body>
 </html>
