@@ -242,7 +242,10 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
       <a href="#" data-view="testcases"><span class="nd" style="background:#2ecc71"></span> Test Cases</a>
       <a href="#" data-view="bugs" id="nav-bugs"><span class="nd" style="background:#ff6b6b"></span> Report a Bug</a>
       <a href="#" data-view="bug-history" id="nav-bug-history"><span class="nd" style="background:#ffb86b"></span> Bug History</a>
-     </nav>
+      <a href="#" data-view="dba" id="nav-dba"><span class="nd" style="background:#38bdf8"></span> Create DBA Ticket</a>
+      <a href="#" data-view="dba-history" id="nav-dba-history"><span class="nd" style="background:#7dd3fc"></span> DBA History</a>
+      <a href="#" data-view="errors"><span class="nd" style="background:#e74c3c"></span> Errors</a>
+    </nav>
     <div class="ns">Integrations</div>
     <nav class="nav">
       <a href="https://dev.azure.com/tr-tax/TaxProf" target="_blank">Azure DevOps &#8599;</a>
@@ -314,6 +317,41 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
       </div>
     </section>
 
+    <!-- DBA History panel — hidden by default, shown when 'DBA History' nav is active -->
+    <section class="panel c12" id="dba-history-panel" style="display:none;grid-column:span 12">
+      <h2 style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <span>🗄️ DBA Ticket History <span class="sub" id="dbah-count">0 tickets</span></span>
+        <span style="display:flex;gap:8px">
+          <button class="btn gh" id="dbah-refresh" title="Re-query ADO for current state of each ticket">↻ Refresh state</button>
+          <button class="btn gh" id="dbah-export"  title="Download DBA history as JSON">↓ Export</button>
+          <button class="btn gh" id="dbah-clear"   title="Clear the list (does NOT delete tickets from ADO)" style="color:#ff8a8a">Clear list</button>
+        </span>
+      </h2>
+      <div class="muted" style="font-size:12px;margin-bottom:12px">
+        DBA tickets you've created through this tool. Stored in your browser. Click any ticket ID to open in Azure DevOps. State refreshes pull live status from ADO.
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;font-size:13px;border-collapse:collapse" id="dbah-table">
+          <thead>
+            <tr style="background:rgba(0,0,0,.25);color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:1px">
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Ticket ID</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Title</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Type</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Priority</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Status</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Environment</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Database</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)">Created</th>
+              <th style="padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)"></th>
+            </tr>
+          </thead>
+          <tbody id="dbah-tbody">
+            <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No DBA tickets created yet. Click "Create DBA Ticket" to get started.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 
   <!-- Story modal -->
@@ -348,6 +386,229 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
       </div>
     </div>
   </div>
+
+  <!-- ══ DBA TICKET MODAL (2-step: Provide Details → Create Ticket) ══ -->
+  <div id="dba-modal" class="moverlay">
+    <div class="mbox" style="max-width:760px">
+      <div class="mhead">
+        <div style="flex:1;min-width:0">
+          <div style="color:var(--muted);font-size:11px;letter-spacing:1.2px;text-transform:uppercase">
+            <span style="color:#38bdf8">🗄️</span>&nbsp; Create DBA Ticket
+          </div>
+          <div id="dba-step-hdr" style="font-size:16px;font-weight:700;margin-top:6px">Step 1 of 2 · Provide Details</div>
+        </div>
+        <button id="dba-close" class="btn gh">✕</button>
+      </div>
+
+      <!-- ── STEP 1: Provide Details ──────────────────────────────────── -->
+      <div id="dba-step1" class="mbody">
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Info banner -->
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;
+               background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);border-radius:10px">
+            <span style="font-size:18px;flex-shrink:0">🗄️</span>
+            <div style="font-size:13px;line-height:1.6">
+              <b style="color:#7dd3fc">DBA Ticket</b> — fill in the required details below.
+              The ticket will be routed to the <b>DBA team</b> under
+              <code style="font-size:11px">TaxProf\surePrep\components\Database\surePrep-dba</code>
+              and assigned to <b>Vijay Kumar Darshanala</b>.
+            </div>
+          </div>
+
+          <!-- Title / Summary -->
+          <div>
+            <label class="fld-label">Request Title <span style="color:#38bdf8">*</span></label>
+            <input id="dba-title" type="text" class="fld-input"
+              placeholder="e.g. Add index on ClientID column in TaxReturns table" />
+          </div>
+
+          <!-- Type + Priority -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label class="fld-label">Request Type <span style="color:#38bdf8">*</span></label>
+              <select id="dba-type" class="fld-input">
+                <option value="">— Select type —</option>
+                <option value="Schema Change">Schema Change</option>
+                <option value="Data Fix">Data Fix</option>
+                <option value="Query Optimisation">Query Optimisation</option>
+                <option value="Index Creation">Index Creation</option>
+                <option value="Stored Procedure">Stored Procedure / Function</option>
+                <option value="Performance Issue">Performance Issue</option>
+                <option value="Backup / Restore">Backup / Restore</option>
+                <option value="Access / Permission">Access / Permission</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="fld-label">Priority</label>
+              <select id="dba-priority" class="fld-input">
+                <option value="2">2 — High</option>
+                <option value="1">1 — Critical</option>
+                <option value="3">3 — Medium</option>
+                <option value="4">4 — Low</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Environment -->
+          <div>
+            <label class="fld-label">Environment(s) affected <span style="color:#38bdf8">*</span></label>
+            <div id="dba-envs" style="display:flex;gap:14px;flex-wrap:wrap"></div>
+          </div>
+
+          <!-- Database / Table -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label class="fld-label">Database Name</label>
+              <input id="dba-database" type="text" class="fld-input"
+                placeholder="e.g. TaxProfDB, SurePrepDW" />
+            </div>
+            <div>
+              <label class="fld-label">Table / Object Name</label>
+              <input id="dba-table" type="text" class="fld-input"
+                placeholder="e.g. dbo.TaxReturns, sp_GetClientData" />
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label class="fld-label">Description / Problem Statement <span style="color:#38bdf8">*</span></label>
+            <textarea id="dba-description" class="fld-input" rows="4"
+              placeholder="Describe the database change or issue in detail. Include current behaviour, expected behaviour, and any relevant business context."></textarea>
+          </div>
+
+          <!-- Steps / SQL -->
+          <div>
+            <label class="fld-label">SQL / Steps to Reproduce <span class="muted" style="font-weight:400">(optional)</span></label>
+            <textarea id="dba-sql" class="fld-input" rows="4"
+              style="font-family:Consolas,monospace;font-size:13px"
+              placeholder="Paste the SQL query, migration script, or steps that reproduce the issue..."></textarea>
+          </div>
+
+          <!-- Impact -->
+          <div>
+            <label class="fld-label">Business Impact / Urgency</label>
+            <input id="dba-impact" type="text" class="fld-input"
+              placeholder="e.g. Blocking Sprint S12 release · Affects 3 firm clients · Performance degradation on prod" />
+          </div>
+
+          <!-- Related Work Item -->
+          <div>
+            <label class="fld-label">Related ADO Work Item ID <span class="muted" style="font-weight:400">(optional)</span></label>
+            <input id="dba-related" type="text" class="fld-input"
+              placeholder="e.g. 5033231 — links this DBA ticket to an existing story or bug" />
+          </div>
+
+          <div id="dba-msg" style="min-height:20px;font-size:13px"></div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
+            <button class="btn gh" id="dba-cancel">Cancel</button>
+            <button class="btn bp" id="dba-next">Review &amp; Create Ticket →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 2: Review & Confirm ────────────────────────────────── -->
+      <div id="dba-step2" class="mbody" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:14px">
+
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 14px;
+               background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.25);border-radius:10px;font-size:13px;line-height:1.6">
+            <span style="font-size:16px;flex-shrink:0">✅</span>
+            <span>Review the ticket details below before submitting. Every field is editable — click any value to update it.
+            Once submitted, the ticket will be created in ADO and routed to the DBA team.</span>
+          </div>
+
+          <!-- Review summary card -->
+          <div style="background:rgba(0,0,0,.22);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px;align-items:start">
+              <span class="muted">Title</span>
+              <b id="dba-rev-title" style="word-break:break-word">—</b>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Type</span><span id="dba-rev-type">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Priority</span><span id="dba-rev-priority">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Environment</span><span id="dba-rev-env">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Database</span><span id="dba-rev-db">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Table / Object</span><span id="dba-rev-table">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px;align-items:start">
+              <span class="muted">Description</span>
+              <span id="dba-rev-desc" style="white-space:pre-wrap;word-break:break-word">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px;align-items:start" id="dba-rev-sql-row">
+              <span class="muted">SQL / Steps</span>
+              <code id="dba-rev-sql" style="font-size:12px;white-space:pre-wrap;word-break:break-word;color:#a6f7c2">—</code>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Impact</span><span id="dba-rev-impact">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px" id="dba-rev-related-row">
+              <span class="muted">Related Item</span><span id="dba-rev-related">—</span>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:10px;display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Assigned to</span>
+              <span style="color:#7dd3fc">Darshanala, Vijay Kumar (TR Technology)</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
+              <span class="muted">Area Path</span>
+              <code style="font-size:11px;color:var(--muted)">TaxProf\surePrep\components\Database\surePrep-dba</code>
+            </div>
+          </div>
+
+          <div id="dba-submit-msg" style="min-height:18px;font-size:13px"></div>
+
+          <div style="display:flex;gap:10px;justify-content:space-between;align-items:center">
+            <button class="btn gh" id="dba-back">← Back</button>
+            <div style="display:flex;gap:10px">
+              <button class="btn gh" id="dba-cancel2">Cancel</button>
+              <button class="btn bp" id="dba-submit">
+                <span class="spin" style="display:none" id="dba-spin"></span>
+                <span id="dba-submit-lbl">🗄️ Create DBA Ticket</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STEP 3: Success ─────────────────────────────────────────── -->
+      <div id="dba-step3" class="mbody" style="display:none">
+        <div style="text-align:center;padding:18px 10px">
+          <div style="width:64px;height:64px;border-radius:50%;margin:0 auto 14px;
+               background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(108,140,255,.2));
+               border:1px solid rgba(56,189,248,.45);display:grid;place-items:center;font-size:32px">✓</div>
+          <div style="font-size:20px;font-weight:700;margin-bottom:6px">DBA Ticket Created in Azure DevOps</div>
+          <div id="dba-success-sub" class="muted" style="font-size:13px;margin-bottom:22px">—</div>
+
+          <div id="dba-success-card" style="text-align:left;max-width:520px;margin:0 auto 22px;
+               background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Ticket summary</div>
+            <div id="dba-success-line1" style="font-size:14px;font-weight:600;line-height:1.45"></div>
+            <div id="dba-success-line2" style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55"></div>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <a id="dba-view-ado" class="btn bp" href="#" target="_blank" rel="noopener"
+               style="text-decoration:none;padding:11px 22px">↗ View Ticket in Azure DevOps</a>
+            <button class="btn gh" id="dba-create-another" style="padding:11px 22px">+ Create Another</button>
+            <button class="btn gh" id="dba-success-done" style="padding:11px 22px">Done</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!-- ══ END DBA TICKET MODAL ══ -->
 
   <!-- AI-first Bug modal (2-step) -->
   <div id="bug-modal" class="moverlay">
@@ -1705,25 +1966,31 @@ document.querySelectorAll('#sidenav a').forEach(a => a.addEventListener('click',
     return;
   }
 
+  // "Create DBA Ticket" sidebar item opens the DBA modal directly
+  if (a.dataset.view === 'dba') {
+    dbaOpen();
+    return;
+  }
+
   document.querySelectorAll('#sidenav a').forEach(x => x.classList.remove('active'));
   a.classList.add('active');
   curView = a.dataset.view || 'dashboard';
 
-  // Toggle main panels based on the selected view.
-  // Bug History view replaces the Stories/Sprint Info/Quick Actions with the
-  // dedicated bug list panel. It also hides the test-case dashboard chrome
-  // (stat tiles + top toolbar) via the `on-bug-history` body class.
   const onBugHistory = curView === 'bug-history';
-  document.body.classList.toggle('on-bug-history', onBugHistory);
+  const onDbaHistory = curView === 'dba-history';
+  const onSpecialView = onBugHistory || onDbaHistory;
+
+  document.body.classList.toggle('on-bug-history', onSpecialView);
+
+  // Show/hide panels based on view
   document.querySelectorAll('.panel').forEach(p => {
     if (p.id === 'bug-history-panel') p.style.display = onBugHistory ? '' : 'none';
-    else                              p.style.display = onBugHistory ? 'none' : '';
+    else if (p.id === 'dba-history-panel') p.style.display = onDbaHistory ? '' : 'none';
+    else p.style.display = onSpecialView ? 'none' : '';
   });
 
-  if (onBugHistory) {
-    renderBugHistory();
-    return;
-  }
+  if (onBugHistory) { renderBugHistory(); return; }
+  if (onDbaHistory) { renderDbaHistory(); return; }
 
   renderRows(curTeam);
   const d = cache[curTeam]; if (!d) return;
@@ -1750,6 +2017,27 @@ document.getElementById('bh-export').addEventListener('click', () => {
   const a = document.createElement('a');
   a.href = url;
   a.download = `bug-history-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// DBA History controls
+document.getElementById('dbah-refresh').addEventListener('click', refreshAllDbaStates);
+document.getElementById('dbah-clear').addEventListener('click', () => {
+  if (!DbaHistory.load().length) return;
+  if (!confirm('Clear the entire DBA ticket history list?\n\nThis ONLY removes the local list — tickets stay in Azure DevOps.')) return;
+  DbaHistory.clear();
+  renderDbaHistory();
+  toast('DBA history cleared', 'success');
+});
+document.getElementById('dbah-export').addEventListener('click', () => {
+  const list = DbaHistory.load();
+  if (!list.length) { toast('Nothing to export', 'info'); return; }
+  const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `dba-history-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 });
@@ -2006,6 +2294,150 @@ const BugHistory = (() => {
   }
   return { load, save, add, remove, clear, updateState };
 })();
+
+// ══════════════════════════════════════════════════════════════════════
+//  DBA HISTORY — same pattern as BugHistory
+//  Storage: localStorage key 'sptcg.dba'. Per-browser, per-user.
+// ══════════════════════════════════════════════════════════════════════
+const DbaHistory = (() => {
+  const KEY = 'sptcg.dba';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
+  }
+  function save(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch(e) { console.warn('DbaHistory save failed:', e); }
+  }
+  function add(ticket) {
+    const list = load();
+    const idx = list.findIndex(t => String(t.id) === String(ticket.id));
+    if (idx >= 0) list[idx] = { ...list[idx], ...ticket };
+    else list.unshift(ticket);
+    save(list);
+    return list;
+  }
+  function remove(id) {
+    const list = load().filter(t => String(t.id) !== String(id));
+    save(list); return list;
+  }
+  function clear() { save([]); }
+  function updateState(id, state) {
+    const list = load();
+    const t = list.find(x => String(x.id) === String(id));
+    if (t) { t.state = state; t.lastRefreshedAt = new Date().toISOString(); save(list); }
+    return list;
+  }
+  return { load, save, add, remove, clear, updateState };
+})();
+
+// ── Render DBA History table ──────────────────────────────────────────
+function renderDbaHistory() {
+  const list    = DbaHistory.load();
+  const tbody   = document.getElementById('dbah-tbody');
+  const counter = document.getElementById('dbah-count');
+  if (!tbody || !counter) return;
+
+  counter.textContent = `${list.length} ticket${list.length === 1 ? '' : 's'}`;
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">No DBA tickets created yet. Click "Create DBA Ticket" to get started.</td></tr>`;
+    return;
+  }
+
+  const escH = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const statePill = state => {
+    const s = (state || '').toLowerCase();
+    const color = /closed|done|completed/.test(s)  ? '#2ecc71'
+                : /active|in progress/.test(s)       ? '#6c8cff'
+                : /removed/.test(s)                  ? '#888'
+                : '#f1c40f';
+    return `<span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">${escH(state || 'New')}</span>`;
+  };
+  const priLabel = { '1':'Critical','2':'High','3':'Medium','4':'Low' };
+  const priColor = { '1':'#e74c3c','2':'#f1c40f','3':'#6c8cff','4':'#2ecc71' };
+  const dateShort = iso => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  };
+
+  tbody.innerHTML = list.map(t => {
+    const pri = String(t.priority || '2');
+    return `
+    <tr data-id="${escH(t.id)}" style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px;font-weight:600">
+        <a href="${escH(t.url)}" target="_blank" rel="noopener" style="color:#38bdf8;text-decoration:none">#${escH(t.id)} ↗</a>
+      </td>
+      <td style="padding:10px;max-width:320px;line-height:1.4">
+        <div style="font-weight:500">${escH(t.title)}</div>
+        ${t.type ? `<div class="muted" style="font-size:11px;margin-top:2px">${escH(t.type)}</div>` : ''}
+      </td>
+      <td style="padding:10px;font-size:12px">
+        <span style="background:rgba(56,189,248,.12);color:#7dd3fc;border:1px solid rgba(56,189,248,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">
+          ${escH(t.type || '—')}
+        </span>
+      </td>
+      <td style="padding:10px">
+        <span style="background:${priColor[pri] || '#888'}22;color:${priColor[pri] || '#888'};border:1px solid ${priColor[pri] || '#888'}55;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">
+          P${pri} — ${priLabel[pri] || '—'}
+        </span>
+      </td>
+      <td style="padding:10px">${statePill(t.state)}</td>
+      <td style="padding:10px;font-size:12px">
+        ${(t.environments || []).map(e =>
+          `<span style="background:rgba(255,184,107,.15);color:#ffb86b;border:1px solid rgba(255,184,107,.4);border-radius:4px;padding:1px 6px;font-size:10px;margin-right:3px">${escH(e)}</span>`
+        ).join('') || '—'}
+      </td>
+      <td style="padding:10px;font-size:12px">${escH(t.database || '—')}</td>
+      <td style="padding:10px;font-size:12px;white-space:nowrap">${escH(dateShort(t.createdAt))}</td>
+      <td style="padding:10px;text-align:right;white-space:nowrap">
+        <button class="dbah-refresh-one btn gh" data-id="${escH(t.id)}" title="Refresh state from ADO" style="padding:3px 8px;font-size:11px;margin-right:4px">↻</button>
+        <a href="${escH(t.url)}" target="_blank" rel="noopener" class="btn primary" style="padding:3px 10px;font-size:11px;text-decoration:none;margin-right:4px">Open</a>
+        <button class="dbah-remove btn gh" data-id="${escH(t.id)}" title="Remove from this list (does NOT delete in ADO)" style="padding:3px 8px;font-size:11px;color:#ff8a8a">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Row action — remove from local list
+  tbody.querySelectorAll('.dbah-remove').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.dataset.id;
+    if (!confirm(`Remove ticket #${id} from this list?\n\nThis does NOT delete the ticket from Azure DevOps — it stays exactly where it was created.`)) return;
+    DbaHistory.remove(id);
+    renderDbaHistory();
+  }));
+
+  // Row action — refresh one ticket state from ADO
+  tbody.querySelectorAll('.dbah-refresh-one').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    btn.disabled = true; btn.textContent = '⋯';
+    try {
+      const data = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${id}?fields=System.State&api-version=7.1`);
+      DbaHistory.updateState(id, data.fields['System.State'] || 'Unknown');
+      renderDbaHistory();
+    } catch(err) {
+      toast(`Refresh failed for #${id}: ${err.message}`, 'error');
+      btn.disabled = false; btn.textContent = '↻';
+    }
+  }));
+}
+
+// ── Refresh all DBA ticket states from ADO ────────────────────────────
+async function refreshAllDbaStates() {
+  const list = DbaHistory.load();
+  if (!list.length) return;
+  const btn = document.getElementById('dbah-refresh');
+  btn.disabled = true; btn.textContent = '⋯ Refreshing…';
+  let updated = 0;
+  for (const t of list) {
+    try {
+      const data = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${t.id}?fields=System.State&api-version=7.1`);
+      const newState = data.fields['System.State'] || 'Unknown';
+      if (newState !== t.state) { DbaHistory.updateState(t.id, newState); updated++; }
+    } catch { /* skip unreachable */ }
+  }
+  btn.disabled = false; btn.textContent = '↻ Refresh state';
+  renderDbaHistory();
+  toast(`Refreshed ${list.length} ticket${list.length === 1 ? '' : 's'} from ADO · ${updated} state change${updated === 1 ? '' : 's'}`, 'success');
+}
 
 const BugUI = (() => {
   let attachments = [];      // [{ blob, name, type, size, previewUrl }]
@@ -4029,6 +4461,330 @@ document.getElementById('bug-modal').addEventListener('keydown', e => {
 // Sidebar entries for bug features are handled by the unified #sidenav handler above:
 //   - "Report a Bug"     → opens BugUI modal (intercepted before view-switching)
 //   - "Bug History"      → swaps the main content to the bug history panel
+
+// ══════════════════════════════════════════════════════════════════════
+//  DBA TICKET — full 2-step flow
+//  Step 1: Provide Details  →  Step 2: Review & Confirm  →  ADO created
+//  Area:   TaxProf\surePrep\components\Database\surePrep-dba
+//  Assignee: Darshanala, Vijay Kumar (TR Technology)
+// ══════════════════════════════════════════════════════════════════════
+const DBA_CFG = {
+  areaPath:    'TaxProf\\surePrep\\components\\Database\\surePrep-dba',
+  assignee:    'Darshanala, Vijay Kumar (TR Technology)',
+  wiType:      'Task',          // ADO work item type — Task routes to DBA backlog
+  referenceWI: '5033231',       // https://dev.azure.com/tr-tax/TaxProf/_workitems/edit/5033231
+};
+
+// ── Env checkboxes (reuse same pattern as Bug modal) ──────────────────
+(function initDbaEnvs() {
+  const wrap = document.getElementById('dba-envs');
+  if (!wrap) return;
+  ['Dev','QA','Stage','Prod'].forEach(env => {
+    const id = `dba-env-${env.toLowerCase()}`;
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer';
+    label.innerHTML = `<input type="checkbox" id="${id}" value="${env}"
+      style="width:15px;height:15px;accent-color:var(--ac);cursor:pointer"> ${env}`;
+    wrap.appendChild(label);
+  });
+})();
+
+function getDbaEnvs() {
+  return ['dev','qa','stage','prod']
+    .filter(e => document.getElementById(`dba-env-${e}`)?.checked)
+    .map(e => e.charAt(0).toUpperCase() + e.slice(1));
+}
+
+// ── Show / hide steps ─────────────────────────────────────────────────
+function dbaShowStep(n) {
+  ['dba-step1','dba-step2','dba-step3'].forEach((id, i) => {
+    document.getElementById(id).style.display = (i === n - 1) ? '' : 'none';
+  });
+  const hdr = document.getElementById('dba-step-hdr');
+  if (n === 1) hdr.textContent = 'Step 1 of 2 · Provide Details';
+  if (n === 2) hdr.textContent = 'Step 2 of 2 · Review & Create Ticket';
+  if (n === 3) hdr.textContent = 'Ticket Created ✓';
+}
+
+// ── Open / close ──────────────────────────────────────────────────────
+function dbaOpen() {
+  dbaShowStep(1);
+  document.getElementById('dba-msg').textContent = '';
+  document.getElementById('dba-submit-msg').textContent = '';
+  document.getElementById('dba-modal').classList.add('open');
+}
+
+function dbaClose() {
+  document.getElementById('dba-modal').classList.remove('open');
+}
+
+function dbaReset() {
+  ['dba-title','dba-database','dba-table','dba-description',
+   'dba-sql','dba-impact','dba-related'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('dba-type').value = '';
+  document.getElementById('dba-priority').value = '2';
+  getDbaEnvs(); // no-op, just ensure
+  ['dev','qa','stage','prod'].forEach(e => {
+    const cb = document.getElementById(`dba-env-${e}`);
+    if (cb) cb.checked = false;
+  });
+  document.getElementById('dba-msg').textContent = '';
+  document.getElementById('dba-submit-msg').textContent = '';
+  dbaShowStep(1);
+}
+
+// ── Validate Step 1 ───────────────────────────────────────────────────
+function dbaValidate() {
+  const msg = document.getElementById('dba-msg');
+  const title = document.getElementById('dba-title').value.trim();
+  const type  = document.getElementById('dba-type').value;
+  const desc  = document.getElementById('dba-description').value.trim();
+  const envs  = getDbaEnvs();
+
+  if (!title) { msg.style.color='var(--bad)'; msg.textContent='⚠ Request title is required.'; return false; }
+  if (!type)  { msg.style.color='var(--bad)'; msg.textContent='⚠ Please select a request type.'; return false; }
+  if (!desc)  { msg.style.color='var(--bad)'; msg.textContent='⚠ Please provide a description.'; return false; }
+  if (!envs.length) { msg.style.color='var(--bad)'; msg.textContent='⚠ Select at least one environment.'; return false; }
+  msg.textContent = '';
+  return true;
+}
+
+// ── Populate review screen ────────────────────────────────────────────
+function dbaPopulateReview() {
+  const g = id => document.getElementById(id)?.value?.trim() || '';
+  const title    = g('dba-title');
+  const type     = g('dba-type');
+  const priority = g('dba-priority');
+  const db       = g('dba-database');
+  const table    = g('dba-table');
+  const desc     = g('dba-description');
+  const sql      = g('dba-sql');
+  const impact   = g('dba-impact');
+  const related  = g('dba-related');
+  const envs     = getDbaEnvs();
+
+  const priLabel = { '1':'1 — Critical','2':'2 — High','3':'3 — Medium','4':'4 — Low' };
+
+  document.getElementById('dba-rev-title').textContent    = title;
+  document.getElementById('dba-rev-type').textContent     = type;
+  document.getElementById('dba-rev-priority').textContent = priLabel[priority] || priority;
+  document.getElementById('dba-rev-env').textContent      = envs.join(' / ') || '—';
+  document.getElementById('dba-rev-db').textContent       = db    || '—';
+  document.getElementById('dba-rev-table').textContent    = table || '—';
+  document.getElementById('dba-rev-desc').textContent     = desc;
+  document.getElementById('dba-rev-sql').textContent      = sql   || '—';
+  document.getElementById('dba-rev-impact').textContent   = impact  || '—';
+  document.getElementById('dba-rev-related').textContent  = related || '—';
+
+  // Hide SQL row if empty
+  document.getElementById('dba-rev-sql-row').style.display     = sql     ? '' : 'none';
+  document.getElementById('dba-rev-related-row').style.display = related ? '' : 'none';
+}
+
+// ── Build ADO repro-steps HTML ────────────────────────────────────────
+function dbaReproHtml(fields) {
+  const { title, type, envs, db, table, desc, sql, impact, related } = fields;
+  const wrap = s => `<div>${s}</div>`;
+  const h    = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const parts = [];
+
+  parts.push(wrap(`<h3><strong>Request Summary</strong></h3>`));
+  parts.push(wrap(`<p><strong>Type:</strong> ${h(type)}</p>`));
+  parts.push(wrap(`<p><strong>Environment(s):</strong> ${h(envs.join(' / '))}</p>`));
+  if (db)    parts.push(wrap(`<p><strong>Database:</strong> ${h(db)}</p>`));
+  if (table) parts.push(wrap(`<p><strong>Table / Object:</strong> ${h(table)}</p>`));
+
+  parts.push(wrap(`<br><h3><strong>Description / Problem Statement</strong></h3>`));
+  parts.push(wrap(`<p>${h(desc).replace(/\n/g,'<br>')}</p>`));
+
+  if (sql) {
+    parts.push(wrap(`<br><h3><strong>SQL / Steps to Reproduce</strong></h3>`));
+    parts.push(wrap(`<pre style="background:#0d1117;padding:10px;border-radius:6px;font-size:12px;overflow:auto">${h(sql)}</pre>`));
+  }
+
+  if (impact) {
+    parts.push(wrap(`<br><h3><strong>Business Impact / Urgency</strong></h3>`));
+    parts.push(wrap(`<p>${h(impact)}</p>`));
+  }
+
+  if (related) {
+    parts.push(wrap(`<br><p><strong>Related ADO Work Item:</strong> `
+      + `<a href="https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${h(related)}">`
+      + `#${h(related)}</a></p>`));
+  }
+
+  parts.push(wrap(`<br><p style="font-size:11px;color:#888"><em>`
+    + `Generated by Sprint Test Case Generator · DBA Ticket · ${new Date().toLocaleString()}`
+    + `</em></p>`));
+
+  return parts.join('\n');
+}
+
+// ── Create work item in ADO ───────────────────────────────────────────
+async function dbaCreateTicket() {
+  const g    = id => document.getElementById(id)?.value?.trim() || '';
+  const title    = g('dba-title');
+  const type     = g('dba-type');
+  const priority = parseInt(g('dba-priority'), 10) || 2;
+  const db       = g('dba-database');
+  const table    = g('dba-table');
+  const desc     = g('dba-description');
+  const sql      = g('dba-sql');
+  const impact   = g('dba-impact');
+  const related  = g('dba-related');
+  const envs     = getDbaEnvs();
+
+  // Build ADO title: "<envs> || DBA || <title>"
+  const adoTitle = (envs.length ? envs.join(' / ') + ' || ' : '') + `DBA || ${title}`;
+
+  // Build HTML description for the repro steps field
+  const reproHtml = dbaReproHtml({ title, type, envs, db, table, desc, sql, impact, related });
+
+  // Get current sprint iteration path from the global cache (accessible everywhere)
+  let iterPath = '';
+  const teamKeys = Object.keys(cache || {});
+  if (teamKeys.length) {
+    const firstTeamData = cache[teamKeys[0]];
+    iterPath = firstTeamData?.sprint?.path || '';
+  }
+
+  const ops = [
+    { op: 'add', path: '/fields/System.Title',                    value: adoTitle },
+    { op: 'add', path: '/fields/Microsoft.VSTS.TCM.ReproSteps',   value: reproHtml },
+    { op: 'add', path: '/fields/Microsoft.VSTS.Common.Priority',  value: priority },
+    { op: 'add', path: '/fields/System.AreaPath',                 value: DBA_CFG.areaPath },
+    { op: 'add', path: '/fields/System.Tags',                     value: 'DBA; Not Automated' },
+    { op: 'add', path: '/fields/System.AssignedTo',               value: DBA_CFG.assignee },
+  ];
+
+  if (iterPath) ops.push({ op: 'add', path: '/fields/System.IterationPath', value: iterPath });
+
+  // Create as Task (routes to DBA backlog)
+  const created = await adoPatch(
+    `${CFG.org}/${CFG.project}/_apis/wit/workitems/$Task?api-version=7.1`, ops
+  );
+  const ticketId  = created.id;
+  const ticketUrl = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${ticketId}`;
+
+  // Link to reference work item if provided
+  if (related && /^\d+$/.test(related)) {
+    try {
+      const fresh = await adoGet(
+        `${CFG.org}/${CFG.project}/_apis/wit/workitems/${ticketId}?api-version=7.1`
+      );
+      await adoPatch(
+        `${CFG.org}/${CFG.project}/_apis/wit/workitems/${ticketId}?api-version=7.1`,
+        [
+          { op: 'test', path: '/rev', value: fresh.rev },
+          { op: 'add',  path: '/relations/-', value: {
+            rel: 'System.LinkTypes.Related',
+            url: `https://dev.azure.com/${CFG.org}/_apis/wit/workItems/${related}`,
+            attributes: { comment: 'Related work item' },
+          }},
+        ]
+      );
+    } catch (linkErr) {
+      console.warn('DBA related link failed:', linkErr.message);
+    }
+  }
+
+  return { ticketId, ticketUrl, adoTitle };
+}
+
+// ── Event wiring ──────────────────────────────────────────────────────
+
+// Sidebar nav — "Create DBA Ticket" opens modal directly
+document.getElementById('nav-dba')?.addEventListener('click', e => {
+  e.preventDefault();
+  dbaOpen();
+});
+
+// Close buttons
+document.getElementById('dba-close')?.addEventListener('click', dbaClose);
+document.getElementById('dba-cancel')?.addEventListener('click', dbaClose);
+document.getElementById('dba-cancel2')?.addEventListener('click', dbaClose);
+document.getElementById('dba-modal')?.addEventListener('click', e => {
+  if (e.target.id === 'dba-modal') dbaClose();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('dba-modal')?.classList.contains('open')) {
+    dbaClose();
+  }
+});
+
+// Step 1 → Step 2: validate then show review
+document.getElementById('dba-next')?.addEventListener('click', () => {
+  if (!dbaValidate()) return;
+  dbaPopulateReview();
+  dbaShowStep(2);
+});
+
+// Step 2 → Step 1: back
+document.getElementById('dba-back')?.addEventListener('click', () => dbaShowStep(1));
+
+// Step 2 → Submit: create ticket in ADO
+document.getElementById('dba-submit')?.addEventListener('click', async () => {
+  const btn  = document.getElementById('dba-submit');
+  const spin = document.getElementById('dba-spin');
+  const lbl  = document.getElementById('dba-submit-lbl');
+  const msg  = document.getElementById('dba-submit-msg');
+
+  btn.disabled = true;
+  spin.style.display = 'inline-block';
+  lbl.textContent = ' Creating ticket in ADO…';
+  msg.style.color = 'var(--muted)';
+  msg.textContent = 'Connecting to Azure DevOps…';
+
+  try {
+    const { ticketId, ticketUrl, adoTitle } = await dbaCreateTicket();
+
+    // Save to DBA history (same as BugHistory pattern)
+    const dbaType     = document.getElementById('dba-type').value;
+    const dbaPriority = document.getElementById('dba-priority').value;
+    const dbaDb       = document.getElementById('dba-database').value.trim();
+    DbaHistory.add({
+      id:          ticketId,
+      title:       adoTitle,
+      type:        dbaType,
+      priority:    dbaPriority,
+      environments: getDbaEnvs(),
+      database:    dbaDb || null,
+      state:       'New',
+      url:         ticketUrl,
+      createdAt:   new Date().toISOString(),
+    });
+    // Refresh DBA history view if currently open
+    if (typeof renderDbaHistory === 'function') renderDbaHistory();
+
+    // Show success screen
+    dbaShowStep(3);
+    document.getElementById('dba-success-sub').textContent =
+      `Ticket #${ticketId} created and assigned to Vijay Kumar Darshanala (DBA Team)`;
+    document.getElementById('dba-success-line1').textContent = adoTitle;
+    document.getElementById('dba-success-line2').textContent =
+      `Area: TaxProf\\surePrep\\components\\Database\\surePrep-dba`;
+    document.getElementById('dba-view-ado').href = ticketUrl;
+
+    toast(`DBA Ticket #${ticketId} created successfully in ADO`, 'success');
+
+  } catch (err) {
+    msg.style.color = 'var(--bad)';
+    msg.textContent = `⚠ Failed to create ticket: ${err.message}`;
+    btn.disabled = false;
+    spin.style.display = 'none';
+    lbl.textContent = '🗄️ Create DBA Ticket';
+  }
+});
+
+// Success screen actions
+document.getElementById('dba-create-another')?.addEventListener('click', () => {
+  dbaReset();
+  dbaShowStep(1);
+});
+document.getElementById('dba-success-done')?.addEventListener('click', dbaClose);
 </script>
 </body>
 </html>
