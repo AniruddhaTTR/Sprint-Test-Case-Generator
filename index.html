@@ -4653,7 +4653,7 @@ async function dbaCreateTicket() {
 
   const ops = [
     { op: 'add', path: '/fields/System.Title',                    value: adoTitle },
-    { op: 'add', path: '/fields/Microsoft.VSTS.TCM.ReproSteps',   value: reproHtml },
+    { op: 'add', path: '/fields/System.Description',              value: reproHtml },
     { op: 'add', path: '/fields/Microsoft.VSTS.Common.Priority',  value: priority },
     { op: 'add', path: '/fields/System.AreaPath',                 value: DBA_CFG.areaPath },
     { op: 'add', path: '/fields/System.Tags',                     value: 'DBA; Not Automated' },
