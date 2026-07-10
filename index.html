@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Sprint Test Case Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root{
   --bg:#0b1020;--bg2:#11172e;--ac:#6c8cff;--ac2:#8a5cff;
@@ -117,6 +118,23 @@ footer{grid-column:1/-1;padding:12px 20px;color:var(--muted);border-top:1px soli
 @keyframes sp{to{transform:rotate(360deg)}}
 .ldrow td{text-align:center;padding:30px;color:var(--muted)}
 
+/* AC grade badge + tooltip */
+.ac-badge{display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:4px;font-size:11px;font-weight:700;
+  cursor:pointer;flex-shrink:0;position:relative;user-select:none}
+.ac-badge .ac-tip{display:none;position:absolute;z-index:300;left:26px;top:50%;
+  transform:translateY(-50%);width:260px;background:#101827;border:1px solid var(--border);
+  border-radius:10px;padding:11px 13px;box-shadow:0 12px 32px rgba(0,0,0,.55);
+  font-size:12px;line-height:1.7;color:var(--text);white-space:normal;pointer-events:none}
+.ac-badge .ac-tip::before{content:'';position:absolute;right:100%;top:50%;
+  transform:translateY(-50%);border:6px solid transparent;border-right-color:#101827}
+.ac-badge:hover .ac-tip,.ac-badge:focus .ac-tip{display:block}
+/* keep tooltip visible when it would overflow the right edge */
+@media(max-width:1100px){.ac-badge .ac-tip{left:auto;right:26px}
+  .ac-badge .ac-tip::before{left:100%;right:auto;border-right-color:transparent;border-left-color:#101827}}
+/* C/D row warning highlight */
+tr.ac-warn td:first-child{border-left:2px solid #f1c40f}
+
 button[data-del]{display:inline-flex;align-items:center;justify-content:center;
   width:20px;height:20px;padding:0;border:1px solid rgba(231,76,60,.5);border-radius:5px;
   background:rgba(231,76,60,.08);color:#ff8f80;cursor:pointer;font-size:12px;font-weight:700}
@@ -152,7 +170,11 @@ button[data-del]:hover{background:rgba(231,76,60,.22)}
    bug list. Keeps the brand/sidebar visible; removes stat tiles, team tabs,
    search, and the TC pipeline action buttons. */
 body.on-bug-history .stat { display: none !important; }
-body.on-bug-history .top-actions { display: none !important; }
+body.on-bug-history .top-actions .team-bar,
+body.on-bug-history .top-actions .search,
+body.on-bug-history .top-actions #btn-gen-all,
+body.on-bug-history .top-actions #btn-sync,
+body.on-bug-history .top-actions #btn-refresh { display: none !important; }
 
 /* ── Bug modal styles ── */
 .mfoot{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;border-top:1px solid var(--border);background:rgba(0,0,0,.15)}
@@ -254,7 +276,18 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
   </aside>
 
   <main>
-    <section class="stat"><div class="l">Active Sprint</div><div class="v" id="s-sprint" style="font-size:18px;line-height:1.2">—</div><div class="t ok" id="s-sprint-sub">Loading...</div></section>
+    <section class="stat">
+      <div class="l">Active Sprint</div>
+      <div class="v" id="s-sprint" style="font-size:18px;line-height:1.2">—</div>
+      <div class="t ok" id="s-sprint-sub">Loading...</div>
+      <!-- Sprint selector — populated by loadUI when iterations are fetched -->
+      <div id="sprint-selector-wrap" style="display:none;margin-top:10px">
+        <select id="sprint-selector" style="width:100%;padding:5px 8px;font-size:11px;
+          background:rgba(0,0,0,.35);color:var(--text);border:1px solid var(--border);
+          border-radius:6px;outline:none;cursor:pointer">
+        </select>
+      </div>
+    </section>
     <section class="stat"><div class="l">Stories Loaded</div><div class="v" id="s-stories">—</div><div class="t ok" id="s-stories-sub">&nbsp;</div></section>
     <section class="stat"><div class="l">Test Cases Linked</div><div class="v" id="s-pushed">—</div><div class="t ok" id="s-pushed-sub">&nbsp;</div></section>
     <section class="stat"><div class="l">Errors</div><div class="v" id="s-err">0</div><div class="t ok" id="s-err-sub">all clear</div></section>
@@ -270,6 +303,29 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
     <section class="panel c4 act">
       <h2>Sprint Info <span class="sub" id="s-time"></span></h2>
       <ul id="act-list"><li><div class="ic">&#9679;</div><div><div class="t">Connecting...</div><div class="m">Fetching live data from ADO</div></div></li></ul>
+
+      <!-- TC Coverage chart — rendered by renderTCChart() after renderDash() -->
+      <div id="tc-chart-wrap" style="display:none;margin-top:14px;border-top:1px dashed var(--border);padding-top:14px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">TC Coverage</div>
+        <!-- Stacked bar -->
+        <div style="position:relative;height:28px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.07)">
+          <div id="tc-bar-filled" style="position:absolute;left:0;top:0;height:100%;background:#2ecc71;border-radius:6px;transition:width .4s ease"></div>
+          <div id="tc-bar-label"  style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);letter-spacing:.3px"></div>
+        </div>
+        <!-- Legend row -->
+        <div style="display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:var(--muted)">
+          <span style="display:flex;align-items:center;gap:5px">
+            <span style="width:9px;height:9px;border-radius:50%;background:#2ecc71;display:inline-block;flex-shrink:0"></span>
+            <span id="tc-legend-yes">0 with TC</span>
+          </span>
+          <span style="display:flex;align-items:center;gap:5px">
+            <span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18);display:inline-block;flex-shrink:0"></span>
+            <span id="tc-legend-no">0 without TC</span>
+          </span>
+        </div>
+        <!-- Per-state breakdown -->
+        <div id="tc-state-breakdown" style="margin-top:10px;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
     </section>
 
     <section class="panel c12" id="qa-panel">
@@ -277,6 +333,7 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn bp" id="btn-full">&#9654; Generate All (Claude)</button>
         <button class="btn bg" id="btn-export">&#8681; Export JSON</button>
+        <button class="btn bg" id="btn-report" title="Generate a shareable HTML sprint report">&#128196; Generate Sprint Report</button>
       </div>
       <pre id="log"></pre>
     </section>
@@ -500,6 +557,30 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
               placeholder="e.g. 5033231 — links this DBA ticket to an existing story or bug" />
           </div>
 
+          <!-- Attachments — same pattern as Bug reporter -->
+          <div>
+            <label class="fld-label">Attachments <span class="muted" style="font-weight:400">(optional — screenshots, SQL files, logs)</span></label>
+            <div id="dba-drop" class="bug-drop">
+              <div class="drop-cta">
+                <div style="font-size:20px;margin-bottom:6px">📎</div>
+                <div style="font-size:13px;color:var(--text)">Drop files here or paste a screenshot</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:4px">
+                  📷 Paste (Ctrl+V) &nbsp;·&nbsp; ⬆ Browse files
+                </div>
+                <div style="margin-top:10px">
+                  <label class="btn gh" style="cursor:pointer">
+                    ⬆ Choose files
+                    <input type="file" id="dba-file" multiple accept="image/*,.sql,.txt,.log,.csv,.pdf" style="display:none" />
+                  </label>
+                </div>
+              </div>
+              <div id="dba-attach-list" class="attach-list"></div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px">
+              Accepted: images, .sql, .txt, .log, .csv, .pdf &nbsp;·&nbsp; All files are uploaded and attached to the ADO ticket automatically on creation.
+            </div>
+          </div>
+
           <div id="dba-msg" style="min-height:20px;font-size:13px"></div>
 
           <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
@@ -555,6 +636,9 @@ kbd{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(-
             </div>
             <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px" id="dba-rev-related-row">
               <span class="muted">Related Item</span><span id="dba-rev-related">—</span>
+            </div>
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px" id="dba-rev-attach-row">
+              <span class="muted">Attachments</span><span id="dba-rev-attach">None</span>
             </div>
             <div style="border-top:1px solid var(--border);padding-top:10px;display:grid;grid-template-columns:130px 1fr;gap:6px;font-size:13px">
               <span class="muted">Assigned to</span>
@@ -918,6 +1002,7 @@ const CFG = {
 // ══════════════════════════════════════════════════════
 const PAT_KEY = 'sptcg.pat';
 let pat = '', curTeam = CFG.teams[0].key, curView = 'dashboard';
+let curIter = null;   // { id, name, path, startDate, isCurrent } — selected iteration
 const cache = {};
 let mStory = null, mGenerated = [];
 
@@ -996,10 +1081,30 @@ function stCls(s) {
 // ══════════════════════════════════════════════════════
 //  DATA FETCHING
 // ══════════════════════════════════════════════════════
-async function fetchSprint(team) {
-  const d = await adoGet(`${CFG.org}/${CFG.project}/${encodeURIComponent(team)}/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1`);
-  if (!(d.value || []).length) throw new Error(`No current sprint for "${team}"`);
-  return d.value[0];
+
+// Fetch ALL iterations for a team, sorted newest-first.
+// Returns array of { id, name, path, startDate, finishDate, isCurrent }
+async function fetchAllIterations(team) {
+  // Fetch all iterations (no $timeframe filter) in one call
+  const all = await adoGet(
+    `${CFG.org}/${CFG.project}/${encodeURIComponent(team)}/_apis/work/teamsettings/iterations?api-version=7.1`
+  );
+  const list = (all.value || []).map(it => ({
+    id:         it.id,
+    name:       it.name,
+    path:       it.path,
+    startDate:  it.attributes?.startDate  || null,
+    finishDate: it.attributes?.finishDate || null,
+    isCurrent:  it.attributes?.timeFrame  === 'current',
+  }));
+  // Sort newest first so the dropdown shows most-recent sprints at the top
+  list.sort((a, b) => {
+    if (!a.startDate && !b.startDate) return 0;
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return new Date(b.startDate) - new Date(a.startDate);
+  });
+  return list;
 }
 
 async function fetchSprintIds(team, iterId) {
@@ -1060,19 +1165,28 @@ async function scanTCs(stories) {
   return stories.map((s, i) => ({ ...s, tcId: res[i] }));
 }
 
-async function loadTeam(key, force = false) {
-  if (cache[key] && !force) return cache[key];
-  const sprint = await fetchSprint(key);
-  const ids = await fetchSprintIds(key, sprint.id);
-  const raw = await hydrateStories(ids);
+// Cache key = "teamKey:iterationId" so past sprints don't overwrite current
+function cacheKey(team, iterId) { return `${team}:${iterId}`; }
+
+async function loadTeam(key, force = false, sprint = null) {
+  const ck = cacheKey(key, sprint?.id || (curIter?.id || 'current'));
+  if (cache[ck] && !force) return cache[ck];
+
+  // If no explicit sprint provided, use curIter (already set by loadUI)
+  const chosenSprint = sprint || curIter;
+  if (!chosenSprint) throw new Error('No sprint selected');
+
+  const ids    = await fetchSprintIds(key, chosenSprint.id);
+  const raw    = await hydrateStories(ids);
   const stories = await scanTCs(raw);
-  cache[key] = { sprint, stories, loadedAt: new Date() };
-  return cache[key];
+  cache[ck] = { sprint: chosenSprint, stories, loadedAt: new Date() };
+  return cache[ck];
 }
 
 async function syncOne(storyId) {
-  const d = cache[curTeam]; if (!d) return;
-  const s = d.stories.find(x => String(x.id) === String(storyId)); if (!s) return;
+  const ck = cacheKey(curTeam, curIter?.id || 'current');
+  const d  = cache[ck]; if (!d) return;
+  const s  = d.stories.find(x => String(x.id) === String(storyId)); if (!s) return;
   try { const t = await findTC(s.id); s.tcId = t ? t.id : null; } catch {}
 }
 
@@ -1259,15 +1373,18 @@ async function fetchHelpContext(storyTitle, apiKey) {
 }
 
 // Full Claude generation with Help Center context
-async function genWithClaude(story) {
+async function genWithClaude(story, riskOverride) {
   const key = CFG.claudeKey;
   if (!key) throw new Error('NO_KEY');
 
   const helpContext = await fetchHelpContext(story.title, key);
-  return callClaudeForTCs(story, key, helpContext);
+  // Use pre-computed risk if provided, otherwise compute fresh
+  const risk       = riskOverride || computeModuleRisk(story);
+  const riskSignal = riskSignalText(risk);
+  return callClaudeForTCs(story, key, helpContext, riskSignal);
 }
 
-async function callClaudeForTCs(story, apiKey, helpContext) {
+async function callClaudeForTCs(story, apiKey, helpContext, riskSignal) {
   const acText = story.ac || '(No acceptance criteria provided)';
 
   const system = `You are a senior QA engineer for SurePrep TaxCaddy — a tax workflow and client portal by Thomson Reuters used by accounting firms and their taxpayer clients.
@@ -1297,13 +1414,14 @@ PRODUCT-SPECIFIC KNOWLEDGE:
 - Status values: "FORM COMPLETED - FILLABLE & NOT UPLOADED", "NON FILLABLE"
 - Actions: Send DRL, Upload documents, Delete documents, Add New Request, Undo
 ${helpContext ? `\nHELP CENTER:\n${helpContext}` : ''}
+${riskSignal  ? `\n${riskSignal}`              : ''}
 
 RULES:
 - Title starts with "Verify"
 - Preconditions: numbered list of specific setup steps (role + data + screen state)
 - Steps: each step.action starts with "Step N:" then verb + exact UI element name
 - Expected: numbered list, one per step, SPECIFIC outcomes (exact messages, field states, counts)
-- Aim for 5–8 TCs covering ALL scenarios in the AC
+- Aim for ${riskSignal ? '7–9' : '5–8'} TCs covering ALL scenarios in the AC
 - Do NOT write generic expected results like "works correctly" or "as expected"`;
 
   const userMsg = `${acText}
@@ -1362,7 +1480,7 @@ Requirements:
 // Output format matches Image 2 reference exactly:
 //   preconditions = numbered list string ("1. ...\n2. ...\n3. ...")
 //   steps = [{action: "Step N: ...", expected: "specific outcome"}]
-function smartACParser(story) {
+function smartACParser(story, riskOverride) {
   const ac = story.ac || '';
   const title = story.title || '';
   const tcs = [];
@@ -1601,23 +1719,141 @@ function smartACParser(story) {
     ],
   });
 
+  // ── Risk-aware addition: extra regression TC for high-risk modules ────
+  const risk = riskOverride || computeModuleRisk(story);
+  if (risk.score > 2) {
+    const recentBugTitles = risk.bugs
+      .slice(0, 3)
+      .map((b, i) => `${i + 1}. ${(b.title || 'Untitled').split('||').pop().trim().slice(0, 80)}`)
+      .join('\n');
+
+    tcs.push({
+      title: `Verify regression — ${title.slice(0, 55)} (high-risk module)`,
+      description: `Regression TC — this module has had ${risk.count} high-severity bug${risk.count === 1 ? '' : 's'} recently (risk score: ${risk.score}). Covers previously reported failure patterns.`,
+      priority: 1,
+      preconditions: makePrecon([
+        `Log in as ${role} with valid credentials.`,
+        `${screen} is open and accessible.`,
+        `Environment: Stage / QA (reproduce conditions closest to where bugs were found).`,
+        `Previously identified failure conditions are set up if applicable.`,
+      ]),
+      steps: [
+        { action: `Step 1: Log in as ${role} and navigate to ${screen}`,
+          expected: `${screen} loads without errors, console shows no JavaScript exceptions` },
+        { action: `Step 2: Perform the primary action: "${title.slice(0, 70)}"`,
+          expected: 'Action completes successfully. No regression from previous sprint behaviour.' },
+        { action: 'Step 3: Repeat the action immediately (re-entry test)',
+          expected: 'Second execution produces the same correct result. No duplicate records created, no state corruption.' },
+        { action: 'Step 4: Verify boundary values — attempt with minimum and maximum allowed inputs',
+          expected: 'System handles boundary values correctly without throwing errors or producing unexpected results.' },
+        { action: 'Step 5: Simulate a previous failure pattern — attempt the action under conditions that caused past bugs in this area',
+          expected: `System handles the condition gracefully. Previously reported failure patterns do NOT recur.${recentBugTitles ? '\n\nPast bugs to regress:\n' + recentBugTitles : ''}` },
+      ],
+    });
+  }
+
   return tcs;
 }
 
 
 // Main entry point — tries Claude first, falls back to smart parser
+// ══════════════════════════════════════════════════════
+//  MODULE RISK SCORER
+//  Cross-references story.areaPath against BugHistory
+//  entries with severity 1 or 2 from the same team,
+//  filed within the last 6 months.
+//  Returns: { score, count, bugs[], level, label, color }
+//  Runs entirely in-browser — zero ADO calls.
+// ══════════════════════════════════════════════════════
+function computeModuleRisk(story) {
+  const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
+  const cutoff        = Date.now() - SIX_MONTHS_MS;
+  const storyArea     = (story.areaPath || '').toLowerCase().trim();
+  const storyTeam     = curTeam;
+
+  // Extract the meaningful module segment from an area path
+  // e.g. "TaxProf\surePrep\components\TaxCaddy\surePrep-tcd-elite"
+  //   → ["taxprof","sureprep","components","taxcaddy","sureprep-tcd-elite"]
+  // We match on any segment overlap to handle partial area path matches
+  const storySegments = storyArea.split(/[\\\/]/).map(s => s.trim()).filter(Boolean);
+
+  const allBugs = BugHistory.load();
+  const matching = allBugs.filter(b => {
+    // Time filter — within last 6 months
+    if (!b.createdAt || new Date(b.createdAt).getTime() < cutoff) return false;
+    // Team filter — same team or no team recorded
+    if (b.team && b.team !== storyTeam) return false;
+    // Severity filter — only Critical (1) or High (2)
+    const sev = parseInt(String(b.severity || '').replace(/[^0-9]/g, ''), 10);
+    if (isNaN(sev) || sev > 2) return false;
+    // Area/module match — compare story area path segments against bug module/title
+    // Bug history stores: module (feature area) and title
+    const bugModule = (b.module || '').toLowerCase();
+    const bugTitle  = (b.title  || '').toLowerCase();
+    const bugTeam   = (b.teamLabel || b.team || '').toLowerCase();
+    const bugAll    = `${bugModule} ${bugTitle} ${bugTeam}`;
+    // Match if any meaningful story segment (>4 chars) appears in the bug context
+    return storySegments.some(seg =>
+      seg.length > 4 && bugAll.includes(seg)
+    );
+  });
+
+  const count = matching.length;
+
+  // Score: each bug contributes, critical bugs (sev=1) count double
+  const score = matching.reduce((acc, b) => {
+    const sev = parseInt(String(b.severity || '').replace(/[^0-9]/g, ''), 10);
+    return acc + (sev === 1 ? 2 : 1);
+  }, 0);
+
+  // Determine risk level
+  let level = 'low', label = '', color = '';
+  if (score >= 6)      { level = 'critical'; label = 'Very high risk area';  color = '#e74c3c'; }
+  else if (score >= 4) { level = 'high';     label = 'High risk area';       color = '#f39c12'; }
+  else if (score > 2)  { level = 'medium';   label = 'Elevated risk area';   color = '#f1c40f'; }
+  else                 { level = 'low';       label = '';                     color = '';        }
+
+  return { score, count, bugs: matching, level, label, color };
+}
+
+// Format a risk signal string for injection into Claude prompts
+function riskSignalText(risk) {
+  if (risk.score <= 2) return '';
+  const lines = [
+    `⚠ RISK SIGNAL — this feature area has had ${risk.count} high-severity bug${risk.count === 1 ? '' : 's'} in the last 6 months (risk score: ${risk.score}).`,
+    ``,
+    `Weight TC generation accordingly:`,
+    `- Prioritise REGRESSION scenarios covering the specific failure patterns from past bugs`,
+    `- Add BOUNDARY CONDITION tests (edge values, empty states, max/min inputs)`,
+    `- Include CONCURRENCY / RE-ENTRY tests (what happens if the user repeats the action)`,
+    `- Cover ERROR RECOVERY paths more thoroughly than usual`,
+    `- Aim for 7–9 TCs instead of the default 5–8`,
+  ];
+  if (risk.bugs.length) {
+    lines.push(``, `Past high-severity bugs in this area (for context):`);
+    risk.bugs.slice(0, 5).forEach((b, i) => {
+      const sev = String(b.severity || '').includes('1') ? 'Critical' : 'High';
+      lines.push(`  ${i + 1}. [${sev}] ${b.title || 'Untitled'}`);
+    });
+  }
+  return lines.join('\n');
+}
+
 async function generateTestCases(story) {
+  // Pre-compute risk once — reused by both Claude path and smart parser
+  const risk = computeModuleRisk(story);
+
   if (CFG.claudeKey) {
     try {
-      return await genWithClaude(story);
+      return await genWithClaude(story, risk);
     } catch(e) {
       if (e.message !== 'NO_KEY') {
         console.warn('Claude generation failed, using smart parser:', e.message);
       }
     }
   }
-  // Smart AC parser — real TCs from AC, no key needed
-  return smartACParser(story);
+  // Smart AC parser — passes risk so it adds regression TC when needed
+  return smartACParser(story, risk);
 }
 
 // ══════════════════════════════════════════════════════
@@ -1631,30 +1867,224 @@ function renderTabs() {
 }
 
 function renderDash(key) {
-  const d = cache[key]; if (!d) return;
+  const d = cache[cacheKey(key, curIter?.id)]; if (!d) return;
   const { sprint, stories, loadedAt } = d;
-  const name = sprint.name || sprint.path.split('\\').pop();
-  const withTC = stories.filter(s => s.tcId).length;
+  const name    = sprint.name || sprint.path?.split('\\').pop();
+  const withTC  = stories.filter(s => s.tcId).length;
+  const isPast  = curIter && !curIter.isCurrent;
+
+  // Update Active Sprint stat card label to reflect past sprint context
+  const statLabel = document.querySelector('#s-sprint')?.closest('.stat')?.querySelector('.l');
+  if (statLabel) statLabel.textContent = isPast ? 'Past Sprint' : 'Active Sprint';
+
   document.getElementById('s-sprint').textContent = name;
-  document.getElementById('s-sprint-sub').textContent = sprint.path;
+  document.getElementById('s-sprint-sub').textContent = sprint.path || '';
   document.getElementById('s-stories').textContent = stories.length;
   document.getElementById('s-stories-sub').textContent = `in ${name}`;
   document.getElementById('s-pushed').textContent = withTC;
   document.getElementById('s-pushed-sub').textContent = `${stories.length - withTC} without TC`;
   document.getElementById('s-err').textContent = stories.filter(s => s._err).length;
   document.getElementById('s-time').textContent = loadedAt.toLocaleString();
-  document.getElementById('cfg-sub').textContent = `${CFG.org}/${CFG.project} — ${name} — ${stories.length} stories`;
+  document.getElementById('cfg-sub').textContent =
+    `${CFG.org}/${CFG.project} — ${name}${isPast ? ' (past sprint)' : ''} — ${stories.length} stories`;
   document.getElementById('act-list').innerHTML = [
     { t:'Sprint loaded',     m:`${stories.length} user stories from ${name}` },
     { t:'Test Cases linked', m:`${withTC} stories have a TC` },
     { t:'Pending',           m:`${stories.length - withTC} need a TC` },
     { t:'Last refreshed',    m: loadedAt.toLocaleTimeString() },
   ].map(i => `<li><div class="ic">&#9679;</div><div><div class="t">${esc(i.t)}</div><div class="m">${esc(i.m)}</div></div></li>`).join('');
+  renderTCChart(stories);
   renderRows(key);
 }
 
+// ── TC Coverage chart ─────────────────────────────────────────────────
+// Pure CSS stacked bar + per-state mini breakdown.
+// No Chart.js instance needed — avoids canvas sizing bugs in narrow panels.
+function renderTCChart(stories) {
+  const wrap = document.getElementById('tc-chart-wrap');
+  if (!wrap || !stories.length) { if (wrap) wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  const total  = stories.length;
+  const withTC = stories.filter(s => s.tcId).length;
+  const pct    = Math.round((withTC / total) * 100);
+
+  // Main bar
+  document.getElementById('tc-bar-filled').style.width = pct + '%';
+  document.getElementById('tc-bar-label').textContent  =
+    pct > 12 ? `${pct}% covered` : (pct > 0 ? `${pct}%` : '');
+  document.getElementById('tc-legend-yes').textContent = `${withTC} with TC`;
+  document.getElementById('tc-legend-no').textContent  = `${total - withTC} without TC`;
+
+  // Per-state breakdown — group stories by state, show TC ratio for each
+  const stateMap = {};
+  stories.forEach(s => {
+    const st = s.state || 'Unknown';
+    if (!stateMap[st]) stateMap[st] = { total: 0, withTC: 0 };
+    stateMap[st].total++;
+    if (s.tcId) stateMap[st].withTC++;
+  });
+
+  // State colour mapping
+  const stateColor = st => {
+    const sl = (st || '').toLowerCase();
+    if (/active/.test(sl))           return '#6c8cff';
+    if (/resolved|closed/.test(sl))  return '#2ecc71';
+    if (/new/.test(sl))              return '#f1c40f';
+    return '#98a2c7';
+  };
+
+  const breakdownEl = document.getElementById('tc-state-breakdown');
+  breakdownEl.innerHTML = Object.entries(stateMap)
+    .sort(([,a],[,b]) => b.total - a.total)
+    .map(([state, data]) => {
+      const sp = data.total > 0 ? Math.round((data.withTC / data.total) * 100) : 0;
+      const color = stateColor(state);
+      return `
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">
+            <span style="display:flex;align-items:center;gap:5px">
+              <span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
+              <span style="color:var(--muted)">${esc(state)}</span>
+            </span>
+            <span style="color:var(--muted)">${data.withTC}/${data.total}</span>
+          </div>
+          <div style="height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden">
+            <div style="height:100%;width:${sp}%;background:${color};border-radius:3px;opacity:.75;transition:width .4s ease"></div>
+          </div>
+        </div>`;
+    }).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  AC QUALITY SCORER
+//  Analyses acceptance criteria text and returns a grade,
+//  colour, clause count, detected issues, and suggestions.
+//  Called inline from renderRows() — zero ADO calls.
+// ══════════════════════════════════════════════════════
+function scoreAC(ac) {
+  const result = {
+    grade: 'D', color: '#e74c3c',
+    clauses: 0, issues: [], suggestions: [],
+  };
+
+  // ── No AC at all ───────────────────────────────────────────────
+  if (!ac || ac.trim().length < 15) {
+    result.issues.push('No acceptance criteria found');
+    result.suggestions.push('Add at least one AC clause (AC1 / Given-When-Then / numbered list)');
+    return result;
+  }
+
+  const lower = ac.toLowerCase();
+  let score = 0;
+
+  // ── 1. Clause detection ────────────────────────────────────────
+  // AC1/AC2 pattern
+  const acNumClauses = (ac.match(/\bAC\s*\d+\b/gi) || []).length;
+  // Given / When / Then / And keywords
+  const gwtClauses = (ac.match(/\b(?:Given|When|Then|And)\b/gi) || []).length;
+  // Numbered list: 1. / 2. / (1) etc.
+  const numClauses = (ac.match(/^\s*\d+[\.\)]\s+\S/gm) || []).length;
+  // Bullet list: • / - / *
+  const bulletClauses = (ac.match(/^\s*[•\-\*]\s+\S/gm) || []).length;
+
+  result.clauses = Math.max(acNumClauses, gwtClauses > 0 ? Math.ceil(gwtClauses / 2) : 0, numClauses, bulletClauses, 1);
+  const clauseScore = Math.min(result.clauses * 10, 35);
+  score += clauseScore;
+
+  if (result.clauses === 1 && ac.length < 80) {
+    result.issues.push('Only 1 clause detected — stories usually need 2–5 AC clauses');
+    result.suggestions.push('Break the AC into numbered clauses (AC1, AC2…) covering main flow, validations, and edge cases');
+  }
+
+  // ── 2. Structure rewards ───────────────────────────────────────
+  const hasACNum   = acNumClauses >= 2;
+  const hasGWT     = /\bgiven\b/i.test(ac) && /\bwhen\b/i.test(ac) && /\bthen\b/i.test(ac);
+  const hasNumbers = numClauses >= 2;
+
+  if (hasGWT)   { score += 25; }
+  if (hasACNum) { score += 20; }
+  if (hasNumbers && !hasGWT && !hasACNum) { score += 10; }
+
+  if (!hasGWT && !hasACNum && !hasNumbers && !bulletClauses) {
+    result.issues.push('No recognisable structure (AC1/AC2, Given/When/Then, or numbered list)');
+    result.suggestions.push('Use AC1 / AC2 prefixes or Given-When-Then format to structure clauses clearly');
+  }
+
+  // ── 3. Vague verb detection (penalties) ───────────────────────
+  const VAGUE_PATTERNS = [
+    { re: /\bshould work(?: correctly| properly)?\b/gi,       label: '"should work"' },
+    { re: /\bfunctions?\s+correctly\b/gi,                      label: '"functions correctly"' },
+    { re: /\bas\s+expected\b/gi,                               label: '"as expected"' },
+    { re: /\bmust\s+function\b/gi,                             label: '"must function"' },
+    { re: /\bneeds?\s+to\s+work\b/gi,                         label: '"needs to work"' },
+    { re: /\bbehaves?\s+correctly\b/gi,                        label: '"behaves correctly"' },
+    { re: /\bworks?\s+(?:as intended|as designed|properly)\b/gi, label: '"works as intended/designed"' },
+    { re: /\bperforms?\s+correctly\b/gi,                       label: '"performs correctly"' },
+    { re: /\bappropriately\b/gi,                               label: '"appropriately" (vague)' },
+    { re: /\betc\.?\b/gi,                                      label: '"etc." (incomplete list)' },
+    { re: /\band so on\b/gi,                                   label: '"and so on" (incomplete)' },
+  ];
+  const vagueFound = [];
+  VAGUE_PATTERNS.forEach(({ re, label }) => {
+    if (re.test(lower)) vagueFound.push(label);
+  });
+  if (vagueFound.length) {
+    const penalty = Math.min(vagueFound.length * 12, 30);
+    score -= penalty;
+    result.issues.push(`Vague phrase${vagueFound.length > 1 ? 's' : ''}: ${vagueFound.join(', ')}`);
+    result.suggestions.push('Replace vague phrases with specific, testable outcomes — e.g. "the system displays error X" instead of "should work correctly"');
+  }
+
+  // ── 4. Positive signal checks ──────────────────────────────────
+  // Expected result presence
+  const hasExpected = /\b(?:should|shall|must)\s+(?:display|show|return|redirect|update|save|send|create|delete|navigate|allow|prevent|block|validate|highlight|enable|disable)\b/i.test(ac);
+  if (hasExpected) score += 12;
+  else {
+    result.issues.push('No clear expected outcome verb detected (display, show, return, redirect, validate…)');
+    result.suggestions.push('Each clause should state a specific observable outcome: "System displays X", "User is redirected to Y"');
+  }
+
+  // Error / negative scenario
+  const hasNegative = /\b(?:invalid|error|fail|reject|unauthori[sz]ed|not allow|cannot|should not|must not|no (?:access|permission))\b/i.test(lower);
+  if (hasNegative) score += 8;
+  else {
+    result.suggestions.push('Consider adding a negative/error scenario clause (invalid input, permission error, edge case)');
+  }
+
+  // Numeric / specific values
+  const hasSpecific = /\b\d+\s*(?:characters?|chars?|seconds?|items?|results?|rows?|records?|mb|kb|px|%)\b|\b(?:maximum|minimum|max|min)\b/i.test(ac);
+  if (hasSpecific) score += 5;
+
+  // AC length — too short suggests underdeveloped
+  if (ac.length < 60) {
+    score -= 10;
+    result.issues.push('AC text is very short — likely underdeveloped');
+    result.suggestions.push('Expand the AC to cover at least the happy path and one validation rule');
+  } else if (ac.length > 150) {
+    score += 5; // rewarding detail
+  }
+
+  // ── 5. Map score to grade ─────────────────────────────────────
+  score = Math.max(0, Math.min(100, score));
+
+  if (score >= 70) {
+    result.grade = 'A'; result.color = '#2ecc71';
+    if (!result.issues.length) result.issues.push('Well-structured AC');
+  } else if (score >= 45) {
+    result.grade = 'B'; result.color = '#8bc34a';
+  } else if (score >= 22) {
+    result.grade = 'C'; result.color = '#f1c40f';
+  } else {
+    result.grade = 'D'; result.color = '#e74c3c';
+  }
+
+  result.score = score;
+  return result;
+}
+
 function renderRows(key, filter) {
-  const d = cache[key]; if (!d) return;
+  const d = cache[cacheKey(key, curIter?.id)]; if (!d) return;
   const adoBase = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/`;
   let rows = d.stories;
   if (curView === 'errors')    rows = rows.filter(s => s._err);
@@ -1670,8 +2100,83 @@ function renderRows(key, filter) {
            <button data-del data-sid="${story.id}" data-tc="${story.tcId}" title="Unlink TC">&#10005;</button>
          </div>`
       : `<button data-create data-ri="${ri}" class="btn bp" style="padding:5px 12px;font-size:12px">+ Create Test Case</button>`;
-    return `<tr data-ri="${ri}">
-      <td><b>#${esc(story.id)}</b><div style="color:var(--muted);font-size:12px;margin-top:2px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(story.title)}</div></td>
+
+    // AC quality score — computed inline, zero API calls
+    const ac = story.ac || '';
+    const acResult = scoreAC(ac);
+    const warn     = acResult.grade === 'C' || acResult.grade === 'D';
+
+    // ── Module risk badge ─────────────────────────────────────────────
+    const risk = computeModuleRisk(story);
+    const showRisk = risk.score > 2;
+    let fireBadge = '';
+    if (showRisk) {
+      const riskBugList = risk.bugs.slice(0, 4).map(b => {
+        const sev   = String(b.severity || '').includes('1') ? 'Critical' : 'High';
+        const label = (b.title || 'Untitled').split('||').pop().trim().slice(0, 55);
+        return `<div style="display:flex;gap:5px;align-items:baseline;margin-top:3px">
+          <span style="color:${sev === 'Critical' ? '#e74c3c' : '#f39c12'};flex-shrink:0;font-size:10px">${sev === 'Critical' ? '●' : '○'}</span>
+          <span style="color:var(--muted);font-size:11px">${esc(label)}</span>
+        </div>`;
+      }).join('');
+      fireBadge = `<span class="ac-badge" tabindex="0"
+        style="background:${risk.color}22;color:${risk.color};border:1px solid ${risk.color}55;font-size:12px"
+        aria-label="${risk.label}: ${risk.count} high-severity bugs">
+        🔥
+        <div class="ac-tip" role="tooltip">
+          <div style="font-weight:600;font-size:13px;margin-bottom:6px;color:${risk.color}">
+            ${esc(risk.label)}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">
+            ${risk.count} high-severity bug${risk.count === 1 ? '' : 's'} in this module
+            (last 6 months) · risk score: ${risk.score}
+          </div>
+          ${riskBugList}
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);font-style:italic;border-top:1px solid rgba(255,255,255,.08);padding-top:6px">
+            TCs will be risk-weighted: extra regression, boundary, and re-entry scenarios generated.
+          </div>
+        </div>
+      </span>`;
+    }
+
+    // Build tooltip content
+    const tipIssues      = acResult.issues.map(i => `<div style="display:flex;gap:6px;align-items:baseline"><span style="color:#e74c3c;flex-shrink:0">✗</span><span>${esc(i)}</span></div>`).join('');
+    const tipSuggestions = acResult.suggestions.map(s => `<div style="display:flex;gap:6px;align-items:baseline;margin-top:3px"><span style="color:#f1c40f;flex-shrink:0">→</span><span style="color:var(--muted)">${esc(s)}</span></div>`).join('');
+    const tipClause      = `<div style="margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <span style="color:var(--muted);font-size:11px">Clauses detected:</span>
+      <span style="font-weight:600;margin-left:5px">${acResult.clauses}</span>
+      <span style="color:var(--muted);font-size:11px;margin-left:10px">Score:</span>
+      <span style="font-weight:600;margin-left:5px">${acResult.score ?? '?'}/100</span>
+    </div>`;
+    const noAC = !ac || ac.trim().length < 15;
+    const tipBody = noAC
+      ? `<div style="color:var(--muted);font-style:italic">No acceptance criteria in ADO for this story.</div>`
+      : `${tipClause}${tipIssues}${tipSuggestions}`;
+
+    const acBadge = `<span class="ac-badge" tabindex="0"
+      style="background:${acResult.color}22;color:${acResult.color};border:1px solid ${acResult.color}55"
+      aria-label="AC quality: ${acResult.grade}${acResult.issues.length ? ' — ' + acResult.issues[0] : ''}">
+      ${acResult.grade}
+      <div class="ac-tip" role="tooltip">
+        <div style="font-weight:600;margin-bottom:6px;font-size:13px">
+          AC Quality: <span style="color:${acResult.color}">${acResult.grade}</span>
+          ${warn ? `<span style="font-size:10px;background:${acResult.color}22;color:${acResult.color};border:1px solid ${acResult.color}55;border-radius:4px;padding:1px 6px;margin-left:6px">Needs attention</span>` : ''}
+        </div>
+        ${tipBody}
+      </div>
+    </span>`;
+
+    return `<tr data-ri="${ri}" class="${warn ? 'ac-warn' : ''}">
+      <td>
+        <div style="display:flex;align-items:flex-start;gap:7px">
+          ${acBadge}
+          ${fireBadge}
+          <div>
+            <b>#${esc(story.id)}</b>
+            <div style="color:var(--muted);font-size:12px;margin-top:2px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(story.title)}</div>
+          </div>
+        </div>
+      </td>
       <td><span class="pill ${stCls(story.state)}">${esc(story.state)}</span></td>
       <td>${tcCell}</td>
       <td>${story.tcId ? '<span class="pill good">Created</span>' : '<span class="pill dim">Not created</span>'}</td>
@@ -1687,38 +2192,122 @@ function renderRows(key, filter) {
 //  LOAD UI
 // ══════════════════════════════════════════════════════
 function setLoading(on) {
-  ['btn-sync','btn-refresh','btn-gen-all','btn-full'].forEach(id => {
-    const b = document.getElementById(id); if (b) b.disabled = on;
+  ['btn-sync','btn-refresh','btn-gen-all','btn-full','btn-report','btn-export'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = on;
   });
 }
 
-async function loadUI(key, force = false) {
+async function loadUI(key, force = false, sprintOverride = null) {
   setLoading(true);
   const lbl = CFG.teams.find(t => t.key === key)?.label || key;
-  document.getElementById('tbody').innerHTML = `<tr class="ldrow"><td colspan="4"><span class="spin"></span>&nbsp;Fetching ${lbl} sprint...</td></tr>`;
+  document.getElementById('tbody').innerHTML =
+    `<tr class="ldrow"><td colspan="4"><span class="spin"></span>&nbsp;Fetching ${lbl} sprints...</td></tr>`;
   ['s-sprint','s-stories','s-pushed'].forEach(id => document.getElementById(id).textContent = '—');
   try {
-    await loadTeam(key, force);
-    renderTabs(); renderDash(key);
-    toast(`${lbl}: ${cache[key].stories.length} stories loaded`, 'success');
+    // Step 1 — fetch all iterations and populate the dropdown
+    let iterations = [];
+    try {
+      iterations = await fetchAllIterations(key);
+    } catch(e) {
+      console.warn('Could not fetch all iterations, falling back to current:', e.message);
+    }
+
+    // Choose which sprint to load
+    let chosen = sprintOverride;
+    if (!chosen) {
+      // Try to keep the same sprint name when switching teams
+      if (curIter) {
+        chosen = iterations.find(i => i.name === curIter.name)
+               || iterations.find(i => i.isCurrent)
+               || iterations[0];
+      } else {
+        chosen = iterations.find(i => i.isCurrent) || iterations[0];
+      }
+    }
+
+    // Fallback: if no iterations returned, try the old current-only call
+    if (!chosen && !iterations.length) {
+      const d = await adoGet(
+        `${CFG.org}/${CFG.project}/${encodeURIComponent(key)}/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1`
+      );
+      const cur = (d.value || [])[0];
+      if (!cur) throw new Error(`No sprint found for "${lbl}"`);
+      chosen = { id: cur.id, name: cur.name, path: cur.path,
+                 startDate: cur.attributes?.startDate || null,
+                 finishDate: cur.attributes?.finishDate || null, isCurrent: true };
+      iterations = [chosen];
+    }
+
+    if (!chosen) throw new Error(`No sprint found for "${lbl}"`);
+    curIter = chosen;
+
+    // Step 2 — populate the sprint selector dropdown
+    populateSprintSelector(iterations, chosen);
+
+    // Step 3 — load stories for the chosen sprint
+    document.getElementById('tbody').innerHTML =
+      `<tr class="ldrow"><td colspan="4"><span class="spin"></span>&nbsp;Loading ${lbl} · ${esc(chosen.name)}...</td></tr>`;
+
+    await loadTeam(key, force, chosen);
+    renderTabs();
+    renderDash(key);
+
+    const ck      = cacheKey(key, chosen.id);
+    const loaded  = cache[ck]?.stories.length ?? 0;
+    const isPast  = !chosen.isCurrent;
+    toast(`${lbl} · ${chosen.name}${isPast ? ' (past)' : ''}: ${loaded} stories`, 'success');
+
   } catch(err) {
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="4" style="color:var(--bad);text-align:center;padding:24px">&#9888; ${esc(err.message)}</td></tr>`;
+    document.getElementById('tbody').innerHTML =
+      `<tr><td colspan="4" style="color:var(--bad);text-align:center;padding:24px">&#9888; ${esc(err.message)}</td></tr>`;
     document.getElementById('tbl-sub').textContent = 'Error loading stories';
     toast(err.message, 'error');
   } finally { setLoading(false); }
+}
+
+// ── Populate the sprint selector dropdown ─────────────────────────────
+function populateSprintSelector(iterations, selected) {
+  const wrap = document.getElementById('sprint-selector-wrap');
+  const sel  = document.getElementById('sprint-selector');
+  if (!sel) return;
+
+  if (iterations.length <= 1) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+
+  const fmt = d => {
+    if (!d) return '';
+    const dt = new Date(d);
+    return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  sel.innerHTML = iterations.map(it => {
+    const dateRange = (it.startDate && it.finishDate)
+      ? ` (${fmt(it.startDate)} – ${fmt(it.finishDate)})`
+      : '';
+    const label = it.name + dateRange + (it.isCurrent ? ' ← current' : '');
+    return `<option value="${esc(it.id)}" ${it.id === selected.id ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════
 //  MODAL
 // ══════════════════════════════════════════════════════
 function openModal(ri) {
-  const d = cache[curTeam]; if (!d) return;
+  const d = cache[cacheKey(curTeam, curIter?.id)]; if (!d) return;
   const story = d.stories[ri]; if (!story) return;
   mStory = story; mGenerated = [];
   const adoBase = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/`;
   const team = CFG.teams.find(t => t.key === curTeam)?.label || curTeam;
   document.getElementById('m-title').textContent = `#${story.id} – ${story.title}`;
-  document.getElementById('m-meta').textContent  = `Team: ${team}  ·  State: ${story.state}  ·  Assigned: ${story.assignedTo}`;
+  const risk = computeModuleRisk(story);
+  const riskNote = risk.score > 2
+    ? ` · 🔥 ${risk.label} (${risk.count} bug${risk.count === 1 ? '' : 's'} — TCs will be risk-weighted)`
+    : '';
+  document.getElementById('m-meta').textContent  = `Team: ${team}  ·  State: ${story.state}  ·  Assigned: ${story.assignedTo}${riskNote}`;
   document.getElementById('m-ac').textContent    = story.ac || '(no acceptance criteria)';
 
   const sub = document.getElementById('m-sub');
@@ -1804,7 +2393,7 @@ async function doPush() {
     list.innerHTML  = `<div style="color:var(--muted);text-align:center;padding:24px"><span class="spin"></span>&nbsp;Creating Test Case in ADO...</div>`;
 
     const tcId = await createTC(mStory, tcs);
-    const cs = cache[curTeam]?.stories.find(s => String(s.id) === String(mStory.id));
+    const cs = cache[cacheKey(curTeam, curIter?.id)]?.stories.find(s => String(s.id) === String(mStory.id));
     if (cs) cs.tcId = tcId;
     mStory.tcId = tcId;
 
@@ -1866,7 +2455,7 @@ function renderMList(tcs) {
     st.style.display = 'block'; st.className = 'ts'; st.textContent = 'Pushing to ADO...';
     try {
       const tcId = await createTC(mStory, [tc]);
-      const cs = cache[curTeam]?.stories.find(s => String(s.id) === String(mStory.id));
+      const cs = cache[cacheKey(curTeam, curIter?.id)]?.stories.find(s => String(s.id) === String(mStory.id));
       if (cs) cs.tcId = tcId; mStory.tcId = tcId;
       st.className = 'ts ok';
       st.innerHTML = `&#9989; TC <a href="https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/${tcId}" target="_blank" style="color:#a6f7c2;font-weight:700">#${tcId} &#8599;</a> created in ADO`;
@@ -1936,11 +2525,38 @@ function doDisconnect() {
 document.getElementById('auth-btn').addEventListener('click', doAuth);
 document.getElementById('pat-in').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
 document.getElementById('btn-disc').addEventListener('click', doDisconnect);
+// Sprint selector — switching iteration reloads stories for the chosen sprint
+document.getElementById('sprint-selector')?.addEventListener('change', async e => {
+  const iterId = e.target.value;
+  // Find the iteration object from any team's cached iterations
+  // (iterations are fetched fresh each time the team loads)
+  const sel = e.target;
+  const option = sel.options[sel.selectedIndex];
+  if (!iterId || !option) return;
+
+  // Reconstruct a minimal sprint object from the option label/value
+  // The full object is in the option dataset — we stored id already.
+  // Re-run loadUI with the chosen iteration found by id from the dropdown.
+  const allOptions = [...sel.options].map(o => ({ id: o.value, name: o.textContent.split(' (')[0].replace(' ← current', '').trim() }));
+  const sprintMeta = allOptions.find(o => o.id === iterId);
+  if (!sprintMeta) return;
+
+  // Build a sprint override — loadUI will re-fetch full details via loadTeam
+  // We need to find the full iteration from the already-fetched list.
+  // Re-fetch iterations to get full startDate/finishDate/isCurrent:
+  const iterations = await fetchAllIterations(curTeam).catch(() => []);
+  const chosen = iterations.find(i => i.id === iterId);
+  if (!chosen) { toast('Could not find selected sprint details', 'error'); return; }
+
+  curIter = chosen;
+  await loadUI(curTeam, false, chosen);
+});
+
 document.getElementById('btn-refresh').addEventListener('click', () => loadUI(curTeam, false));
 document.getElementById('btn-sync').addEventListener('click', async () => {
   const btn = document.getElementById('btn-sync'); btn.disabled = true; btn.textContent = 'Syncing...';
   try {
-    const d = cache[curTeam];
+    const d = cache[cacheKey(curTeam, curIter?.id)];
     if (d) {
       let cur = 0; const s = d.stories;
       const wk = async () => { while (true) { const i = cur++; if (i >= s.length) break; try { const t = await findTC(s[i].id); s[i].tcId = t ? t.id : null; } catch {} }};
@@ -1982,18 +2598,26 @@ document.querySelectorAll('#sidenav a').forEach(a => a.addEventListener('click',
 
   document.body.classList.toggle('on-bug-history', onSpecialView);
 
-  // Show/hide panels based on view
+  // Show/hide panels based on view — explicitly handle each panel
+  // so returning to dashboard always restores the correct state
+  const bugPanel  = document.getElementById('bug-history-panel');
+  const dbaPanel  = document.getElementById('dba-history-panel');
+  const qaPanel   = document.getElementById('qa-panel');
+
+  if (bugPanel) bugPanel.style.display = onBugHistory ? '' : 'none';
+  if (dbaPanel) dbaPanel.style.display = onDbaHistory ? '' : 'none';
+
+  // All other .panel elements — show when on dashboard/normal views, hide on special views
   document.querySelectorAll('.panel').forEach(p => {
-    if (p.id === 'bug-history-panel') p.style.display = onBugHistory ? '' : 'none';
-    else if (p.id === 'dba-history-panel') p.style.display = onDbaHistory ? '' : 'none';
-    else p.style.display = onSpecialView ? 'none' : '';
+    if (p.id === 'bug-history-panel' || p.id === 'dba-history-panel') return; // handled above
+    p.style.display = onSpecialView ? 'none' : '';
   });
 
   if (onBugHistory) { renderBugHistory(); return; }
   if (onDbaHistory) { renderDbaHistory(); return; }
 
   renderRows(curTeam);
-  const d = cache[curTeam]; if (!d) return;
+  const d = cache[cacheKey(curTeam, curIter?.id)]; if (!d) return;
   const sub = document.getElementById('tbl-sub'), s = d.stories;
   if (curView==='errors') sub.textContent = `${s.filter(x=>x._err).length} with errors`;
   else if (curView==='testcases') sub.textContent = `${s.filter(x=>x.tcId).length} with TC`;
@@ -2053,7 +2677,7 @@ document.getElementById('tbody').addEventListener('click', async e => {
     const row = del.closest('tr'); if (row) row.style.opacity = '.5';
     try {
       await unlinkTC(del.dataset.tc, del.dataset.sid);
-      const s = cache[curTeam]?.stories.find(x => String(x.id) === String(del.dataset.sid));
+      const s = cache[cacheKey(curTeam, curIter?.id)]?.stories.find(x => String(x.id) === String(del.dataset.sid));
       if (s) s.tcId = null;
       renderRows(curTeam); renderDash(curTeam); toast(`TC #${del.dataset.tc} unlinked`, 'success');
     } catch(err) { if (row) row.style.opacity='1'; del.disabled=false; del.textContent='✕'; toast('Unlink failed: '+err.message,'error'); }
@@ -2062,7 +2686,7 @@ document.getElementById('tbody').addEventListener('click', async e => {
   const cr = e.target.closest('button[data-create]');
   if (cr) {
     e.stopPropagation();
-    const story = cache[curTeam]?.stories[+cr.dataset.ri]; if (!story) return;
+    const story = cache[cacheKey(curTeam, curIter?.id)]?.stories[+cr.dataset.ri]; if (!story) return;
     cr.disabled = true; cr.innerHTML = `<span class="spin"></span> Generating...`;
     try {
       cr.innerHTML = `<span class="spin"></span> Creating in ADO...`;
@@ -2096,7 +2720,7 @@ document.getElementById('m-regen').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-full').addEventListener('click', async () => {
-  const d = cache[curTeam]; if (!d) return;
+  const d = cache[cacheKey(curTeam, curIter?.id)]; if (!d) return;
   const pending = d.stories.filter(s => !s.tcId);
   if (!pending.length) { toast('All stories already have TCs!', 'success'); return; }
   setLoading(true); document.getElementById('log').textContent = '';
@@ -2126,11 +2750,359 @@ document.getElementById('btn-full').addEventListener('click', async () => {
 document.getElementById('btn-gen-all').addEventListener('click', () => document.getElementById('btn-full').click());
 
 document.getElementById('btn-export').addEventListener('click', () => {
-  const d = cache[curTeam]; if (!d) { toast('No data loaded', 'error'); return; }
+  const d = cache[cacheKey(curTeam, curIter?.id)]; if (!d) { toast('No data loaded', 'error'); return; }
   const blob = new Blob([JSON.stringify({ team:curTeam, sprint:d.sprint.name, stories:d.stories.map(s=>({id:s.id,title:s.title,state:s.state,tcId:s.tcId||null})) },null,2)],{type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `results-${curTeam}.json`; a.click();
   toast('Exported', 'success');
 });
+
+// ══════════════════════════════════════════════════════
+//  SPRINT REPORT GENERATOR
+//  Produces a self-contained HTML file — no external deps.
+//  All data comes from: cache, BugHistory, DbaHistory,
+//  localStorage['sptcg.trend'], curTeam, curIter.
+// ══════════════════════════════════════════════════════
+document.getElementById('btn-report').addEventListener('click', () => {
+  const d = cache[cacheKey(curTeam, curIter?.id)];
+  if (!d) { toast('Load a sprint first', 'error'); return; }
+  const html = buildSprintReport(d);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  const sprintSlug = (d.sprint.name || 'sprint').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const teamLabel  = CFG.teams.find(t => t.key === curTeam)?.label || curTeam;
+  a.download = `QA-Report_${teamLabel}_${sprintSlug}_${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Sprint report downloaded', 'success');
+});
+
+function buildSprintReport(d) {
+  const { sprint, stories, loadedAt } = d;
+  const teamLabel  = CFG.teams.find(t => t.key === curTeam)?.label || curTeam;
+  const sprintName = sprint.name || sprint.path?.split('\\').pop() || '—';
+  const total      = stories.length;
+  const withTC     = stories.filter(s => s.tcId).length;
+  const pct        = total ? Math.round((withTC / total) * 100) : 0;
+  const adoBase    = `https://dev.azure.com/${CFG.org}/${CFG.project}/_workitems/edit/`;
+  const now        = new Date().toLocaleString();
+  const isPast     = curIter && !curIter.isCurrent;
+
+  // ── helpers ────────────────────────────────────────────────────────
+  const he = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const stateColor = st => {
+    const s = (st || '').toLowerCase();
+    if (/active/.test(s))          return '#3b82f6';
+    if (/resolved|closed/.test(s)) return '#22c55e';
+    if (/new/.test(s))             return '#f59e0b';
+    return '#94a3b8';
+  };
+  const sevColor = sev => {
+    const s = String(sev || '');
+    if (/^1|critical/i.test(s)) return '#ef4444';
+    if (/^2|high/i.test(s))     return '#f97316';
+    if (/^3|medium/i.test(s))   return '#f59e0b';
+    return '#94a3b8';
+  };
+  const priLabel = { '1':'Critical','2':'High','3':'Medium','4':'Low' };
+  const dateStr  = iso => iso ? new Date(iso).toLocaleDateString() : '—';
+
+  // ── AC quality grade (inline, no external fn needed) ─────────────
+  function acGrade(ac) {
+    if (!ac || ac.length < 20) return { grade:'D', color:'#ef4444', note:'No AC' };
+    const lower = ac.toLowerCase();
+    let score = 0;
+    const clauses = (ac.match(/\bAC\s*\d+\b|\bGiven\b|\bWhen\b|\bThen\b|\bAnd\b/gi) || []).length;
+    const vague   = (ac.match(/\bshould work\b|\bfunctions?\s+correctly\b|\bas\s+expected\b|\bmust\s+function\b/gi) || []).length;
+    score += Math.min(clauses, 5) * 15;
+    score += ac.length > 100 ? 20 : 0;
+    score += /given|when|then/i.test(lower) ? 20 : 0;
+    score += /AC\s*\d+/i.test(ac) ? 15 : 0;
+    score -= vague * 15;
+    if (score >= 60) return { grade:'A', color:'#22c55e', note:'Well structured' };
+    if (score >= 35) return { grade:'B', color:'#84cc16', note:'Good' };
+    if (score >= 15) return { grade:'C', color:'#f59e0b', note:'Needs improvement' };
+    return { grade:'D', color:'#ef4444', note:'Vague or missing' };
+  }
+
+  // ── Per-developer coverage ────────────────────────────────────────
+  const devMap = {};
+  stories.forEach(s => {
+    const dev = s.assignedTo || 'Unassigned';
+    if (!devMap[dev]) devMap[dev] = { total:0, withTC:0 };
+    devMap[dev].total++;
+    if (s.tcId) devMap[dev].withTC++;
+  });
+
+  // ── Bug history filtered to current sprint ───────────────────────
+  const allBugs  = BugHistory.load();
+  const sprintBugs = allBugs.filter(b =>
+    b.sprint === sprintName ||
+    (b.team === curTeam && b.sprint === sprintName) ||
+    (!b.sprint && b.team === curTeam)
+  );
+
+  // ── DBA history (all, since no sprint tag on DBA) ─────────────────
+  const allDba = DbaHistory.load();
+
+  // ── Trend data ────────────────────────────────────────────────────
+  let trendRows = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem('sptcg.trend') || '[]');
+    trendRows = raw.filter(r => r.team === curTeam).slice(-6);
+  } catch (_) {}
+
+  // ── Coverage bar HTML ────────────────────────────────────────────
+  const coverageBar = `
+    <div style="background:#1e293b;border-radius:8px;height:24px;overflow:hidden;margin:8px 0">
+      <div style="height:100%;width:${pct}%;background:#22c55e;display:flex;align-items:center;justify-content:center;
+        font-size:12px;font-weight:600;color:#fff;transition:width .3s">${pct > 10 ? pct+'%' : ''}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:4px">
+      <span>&#9646; ${withTC} with TC</span><span>&#9646; ${total - withTC} without TC</span>
+    </div>`;
+
+  // ── Trend sparkline (inline SVG) ─────────────────────────────────
+  let sparklineSVG = '';
+  if (trendRows.length >= 2) {
+    const W = 200, H = 40;
+    const pts = trendRows.map((r, i) => {
+      const x = (i / (trendRows.length - 1)) * (W - 10) + 5;
+      const y = H - (r.pct / 100) * (H - 8) - 4;
+      return `${x},${y}`;
+    });
+    sparklineSVG = `
+      <div style="margin-top:10px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:4px">Coverage trend (last ${trendRows.length} sprints)</div>
+        <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="overflow:visible">
+          <polyline points="${pts.join(' ')}" fill="none" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"/>
+          ${trendRows.map((r, i) => {
+            const x = (i / (trendRows.length - 1)) * (W - 10) + 5;
+            const y = H - (r.pct / 100) * (H - 8) - 4;
+            return `<circle cx="${x}" cy="${y}" r="3" fill="#22c55e"/>
+                    <text x="${x}" y="${y - 6}" text-anchor="middle" font-size="9" fill="#94a3b8">${r.pct}%</text>`;
+          }).join('')}
+        </svg>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b;width:${W}px">
+          ${trendRows.map(r => `<span>${he(r.sprintName?.split('_S').pop() || r.sprintName || '')}</span>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // ── Story rows ───────────────────────────────────────────────────
+  const storyRows = stories.map(s => {
+    const g = acGrade(s.ac);
+    const tcCell = s.tcId
+      ? `<a href="${adoBase}${s.tcId}" target="_blank" style="color:#60a5fa;font-weight:600">#${s.tcId} &#8599;</a>`
+      : `<span style="color:#94a3b8">—</span>`;
+    return `<tr style="border-bottom:1px solid #1e293b">
+      <td style="padding:9px 10px;font-weight:600;white-space:nowrap;color:#93c5fd">
+        <a href="${adoBase}${s.id}" target="_blank" style="color:#60a5fa;text-decoration:none">#${he(s.id)}</a>
+      </td>
+      <td style="padding:9px 10px;max-width:340px;line-height:1.4;font-size:13px">${he(s.title)}</td>
+      <td style="padding:9px 10px;font-size:12px;white-space:nowrap">${he(s.assignedTo || '—')}</td>
+      <td style="padding:9px 10px">
+        <span style="background:${stateColor(s.state)}22;color:${stateColor(s.state)};border:1px solid ${stateColor(s.state)}55;
+          border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap">${he(s.state)}</span>
+      </td>
+      <td style="padding:9px 10px">${tcCell}</td>
+      <td style="padding:9px 10px;text-align:center">
+        <span style="background:${g.color}22;color:${g.color};border:1px solid ${g.color}55;
+          border-radius:4px;padding:2px 8px;font-size:12px;font-weight:700" title="${g.note}">${g.grade}</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // ── Bug rows ─────────────────────────────────────────────────────
+  const bugRows = sprintBugs.length ? sprintBugs.map(b => `
+    <tr style="border-bottom:1px solid #1e293b">
+      <td style="padding:9px 10px;font-weight:600">
+        <a href="${he(b.url)}" target="_blank" style="color:#f87171;text-decoration:none">#${he(b.id)} &#8599;</a>
+      </td>
+      <td style="padding:9px 10px;font-size:13px;max-width:340px">${he(b.title)}</td>
+      <td style="padding:9px 10px">
+        <span style="background:${sevColor(b.severity)}22;color:${sevColor(b.severity)};border:1px solid ${sevColor(b.severity)}55;
+          border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">${he(b.severity || '—')}</span>
+      </td>
+      <td style="padding:9px 10px;font-size:12px">${he(b.module || '—')}</td>
+      <td style="padding:9px 10px">
+        <span style="background:#1e40af33;color:#60a5fa;border:1px solid #1e40af55;border-radius:999px;
+          padding:2px 8px;font-size:11px">${he(b.state || 'New')}</span>
+      </td>
+      <td style="padding:9px 10px;font-size:12px;color:#64748b">${dateStr(b.createdAt)}</td>
+    </tr>`).join('')
+  : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#64748b;font-style:italic">No bugs filed for this sprint</td></tr>`;
+
+  // ── DBA rows ─────────────────────────────────────────────────────
+  const dbaRows = allDba.length ? allDba.map(t => `
+    <tr style="border-bottom:1px solid #1e293b">
+      <td style="padding:9px 10px;font-weight:600">
+        <a href="${he(t.url)}" target="_blank" style="color:#38bdf8;text-decoration:none">#${he(t.id)} &#8599;</a>
+      </td>
+      <td style="padding:9px 10px;font-size:13px;max-width:300px">${he(t.title)}</td>
+      <td style="padding:9px 10px;font-size:12px">${he(t.type || '—')}</td>
+      <td style="padding:9px 10px">
+        <span style="background:${sevColor(t.priority)}22;color:${sevColor(t.priority)};border:1px solid ${sevColor(t.priority)}55;
+          border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">P${he(t.priority||'?')} — ${priLabel[t.priority]||'—'}</span>
+      </td>
+      <td style="padding:9px 10px">
+        <span style="background:#0f4c7533;color:#38bdf8;border:1px solid #0f4c7555;border-radius:999px;
+          padding:2px 8px;font-size:11px">${he(t.state || 'New')}</span>
+      </td>
+      <td style="padding:9px 10px;font-size:12px;color:#64748b">${dateStr(t.createdAt)}</td>
+    </tr>`).join('')
+  : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#64748b;font-style:italic">No DBA tickets on record</td></tr>`;
+
+  // ── Developer rows ────────────────────────────────────────────────
+  const devRows = Object.entries(devMap)
+    .sort(([,a],[,b]) => b.total - a.total)
+    .map(([dev, data]) => {
+      const p = data.total ? Math.round((data.withTC / data.total) * 100) : 0;
+      const barColor = p === 100 ? '#22c55e' : p >= 50 ? '#f59e0b' : '#ef4444';
+      return `<tr style="border-bottom:1px solid #1e293b">
+        <td style="padding:9px 10px;font-size:13px">${he(dev)}</td>
+        <td style="padding:9px 10px;text-align:center;font-weight:600">${data.total}</td>
+        <td style="padding:9px 10px;text-align:center;color:#22c55e;font-weight:600">${data.withTC}</td>
+        <td style="padding:9px 10px;text-align:center;color:#ef4444;font-weight:600">${data.total - data.withTC}</td>
+        <td style="padding:9px 10px;min-width:120px">
+          <div style="background:#1e293b;border-radius:4px;height:16px;overflow:hidden">
+            <div style="height:100%;width:${p}%;background:${barColor}"></div>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px;text-align:right">${p}%</div>
+        </td>
+      </tr>`;
+    }).join('');
+
+  // ── Assemble HTML document ────────────────────────────────────────
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QA Sprint Report — ${he(teamLabel)} · ${he(sprintName)}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#0f172a;color:#e2e8f0;min-height:100vh;padding:32px 24px}
+  a{color:#60a5fa}
+  h1{font-size:26px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+  h2{font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;
+     color:#64748b;margin:0 0 14px;padding-bottom:8px;border-bottom:1px solid #1e293b}
+  .wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+  .card{background:#1e293b;border-radius:14px;padding:22px 24px;border:1px solid #334155}
+  .meta{font-size:13px;color:#64748b;margin-top:6px;display:flex;gap:16px;flex-wrap:wrap}
+  .meta span{display:flex;align-items:center;gap:5px}
+  .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;
+         font-size:12px;font-weight:600;border:1px solid transparent}
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:#0f172a;border-radius:10px;padding:14px;text-align:center;border:1px solid #334155}
+  .stat .n{font-size:28px;font-weight:700;line-height:1.1}
+  .stat .l{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:9px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.8px;
+     color:#64748b;border-bottom:1px solid #334155;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .past-badge{display:inline-block;background:#854d0e33;color:#fbbf24;border:1px solid #854d0e;
+    border-radius:6px;font-size:11px;padding:2px 8px;margin-left:8px;vertical-align:middle}
+  footer{text-align:center;font-size:12px;color:#334155;padding-top:8px}
+  @media(max-width:700px){body{padding:16px 12px}.stat-row{grid-template-columns:1fr 1fr}}
+  @media print{body{background:#fff;color:#0f172a}.card{border:1px solid #e2e8f0;background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="card">
+    <h1>${he(teamLabel)} — ${he(sprintName)}${isPast ? `<span class="past-badge">Past Sprint</span>` : ''}</h1>
+    <div class="meta">
+      <span>&#128203; QA Sprint Report</span>
+      <span>&#128197; Generated: ${he(now)}</span>
+      <span>&#127919; ${he(CFG.org)} / ${he(CFG.project)}</span>
+      ${curIter?.startDate && curIter?.finishDate
+        ? `<span>&#128336; ${dateStr(curIter.startDate)} – ${dateStr(curIter.finishDate)}</span>` : ''}
+    </div>
+  </div>
+
+  <!-- TC Coverage Summary -->
+  <div class="card">
+    <h2>TC Coverage Summary</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="n" style="color:#60a5fa">${total}</div><div class="l">Total Stories</div></div>
+      <div class="stat"><div class="n" style="color:#22c55e">${withTC}</div><div class="l">With TC</div></div>
+      <div class="stat"><div class="n" style="color:#f87171">${total - withTC}</div><div class="l">Without TC</div></div>
+      <div class="stat"><div class="n" style="color:${pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444'}">${pct}%</div><div class="l">Coverage</div></div>
+      <div class="stat"><div class="n" style="color:#f87171">${stories.filter(s => s._err).length}</div><div class="l">Errors</div></div>
+    </div>
+    ${coverageBar}
+    ${sparklineSVG}
+  </div>
+
+  <!-- Story-by-story table -->
+  <div class="card">
+    <h2>Stories (${total})</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>ID</th><th>Title</th><th>Assigned To</th><th>State</th><th>Test Case</th><th>AC Grade</th>
+        </tr></thead>
+        <tbody>${storyRows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;color:#475569;margin-top:10px;line-height:1.7">
+      <b style="color:#94a3b8">AC Grade:</b>
+      A = well-structured (Given/When/Then, AC1/AC2) ·
+      B = good ·
+      C = needs improvement ·
+      D = vague or missing
+    </div>
+  </div>
+
+  <!-- Per-developer coverage -->
+  <div class="card">
+    <h2>Coverage by Developer</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Developer</th><th style="text-align:center">Stories</th>
+          <th style="text-align:center">With TC</th><th style="text-align:center">Without TC</th>
+          <th style="min-width:140px">Coverage</th>
+        </tr></thead>
+        <tbody>${devRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bugs -->
+  <div class="card">
+    <h2>Bugs Filed — ${he(sprintName)} (${sprintBugs.length})</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Bug ID</th><th>Title</th><th>Severity</th><th>Module</th><th>State</th><th>Filed</th></tr></thead>
+        <tbody>${bugRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DBA Tickets -->
+  <div class="card">
+    <h2>DBA Tickets (${allDba.length})</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Ticket ID</th><th>Title</th><th>Type</th><th>Priority</th><th>State</th><th>Created</th></tr></thead>
+        <tbody>${dbaRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    Sprint Test Case Generator · QA Report · ${he(teamLabel)} · ${he(sprintName)} · ${he(now)}
+  </footer>
+
+</div>
+</body>
+</html>`;
+}
 
 // ══════════════════════════════════════════════════════
 //  INIT — auto-login with saved PAT
@@ -4526,11 +5498,14 @@ function dbaReset() {
   });
   document.getElementById('dba-type').value = '';
   document.getElementById('dba-priority').value = '2';
-  getDbaEnvs(); // no-op, just ensure
   ['dev','qa','stage','prod'].forEach(e => {
     const cb = document.getElementById(`dba-env-${e}`);
     if (cb) cb.checked = false;
   });
+  // Clear attachments and revoke object URLs
+  dbaAttachments.forEach(a => { try { URL.revokeObjectURL(a.previewUrl); } catch(_){} });
+  dbaAttachments = [];
+  renderDbaAttachments();
   document.getElementById('dba-msg').textContent = '';
   document.getElementById('dba-submit-msg').textContent = '';
   dbaShowStep(1);
@@ -4578,6 +5553,24 @@ function dbaPopulateReview() {
   document.getElementById('dba-rev-sql').textContent      = sql   || '—';
   document.getElementById('dba-rev-impact').textContent   = impact  || '—';
   document.getElementById('dba-rev-related').textContent  = related || '—';
+
+  // Attachment summary
+  const attachEl = document.getElementById('dba-rev-attach');
+  const attachRow = document.getElementById('dba-rev-attach-row');
+  if (dbaAttachments.length) {
+    const imgs = dbaAttachments.filter(a => a.type.startsWith('image/')).length;
+    const docs = dbaAttachments.length - imgs;
+    const parts = [];
+    if (imgs) parts.push(`${imgs} image${imgs > 1 ? 's' : ''}`);
+    if (docs) parts.push(`${docs} file${docs > 1 ? 's' : ''}`);
+    attachEl.textContent = parts.join(' + ') + ' — will be uploaded and attached to the ticket';
+    attachEl.style.color = '#a6f7c2';
+    attachRow.style.display = '';
+  } else {
+    attachEl.textContent = 'None';
+    attachEl.style.color = '';
+    attachRow.style.display = 'none';
+  }
 
   // Hide SQL row if empty
   document.getElementById('dba-rev-sql-row').style.display     = sql     ? '' : 'none';
@@ -4734,41 +5727,86 @@ document.getElementById('dba-submit')?.addEventListener('click', async () => {
 
   btn.disabled = true;
   spin.style.display = 'inline-block';
-  lbl.textContent = ' Creating ticket in ADO…';
   msg.style.color = 'var(--muted)';
-  msg.textContent = 'Connecting to Azure DevOps…';
 
   try {
+    // ── Step 1: Upload attachments first ──────────────────────────────
+    const uploaded = [];  // [{ ...original, adoUrl }]
+    if (dbaAttachments.length) {
+      lbl.textContent = ` Uploading ${dbaAttachments.length} attachment${dbaAttachments.length > 1 ? 's' : ''}…`;
+      for (const a of dbaAttachments) {
+        msg.textContent = `Uploading ${a.name}…`;
+        try {
+          const result = await dbaUploadAttachment(a.blob instanceof File ? a.blob : new File([a.blob], a.name, { type: a.type }));
+          uploaded.push({ ...a, adoUrl: result.url });
+        } catch (err) {
+          toast(`Upload failed for "${a.name}": ${err.message}`, 'error');
+          uploaded.push({ ...a, adoUrl: null });
+        }
+      }
+    }
+
+    // ── Step 2: Create the ticket ─────────────────────────────────────
+    lbl.textContent = ' Creating ticket in ADO…';
+    msg.textContent = 'Connecting to Azure DevOps…';
     const { ticketId, ticketUrl, adoTitle } = await dbaCreateTicket();
 
-    // Save to DBA history (same as BugHistory pattern)
+    // ── Step 3: Link attachments to the work item ─────────────────────
+    const linked = uploaded.filter(a => a.adoUrl);
+    if (linked.length) {
+      msg.textContent = `Attaching ${linked.length} file${linked.length > 1 ? 's' : ''} to ticket…`;
+      for (const a of linked) {
+        try {
+          const fresh = await adoGet(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${ticketId}?api-version=7.1`);
+          await adoPatch(`${CFG.org}/${CFG.project}/_apis/wit/workitems/${ticketId}?api-version=7.1`, [
+            { op: 'test', path: '/rev', value: fresh.rev },
+            { op: 'add',  path: '/relations/-', value: {
+              rel: 'AttachedFile',
+              url: a.adoUrl,
+              attributes: { comment: a.name },
+            }},
+          ]);
+        } catch (linkErr) {
+          toast(`Linking "${a.name}" to ticket failed: ${linkErr.message}`, 'error');
+        }
+      }
+    }
+
+    // ── Step 4: Save to DBA history ───────────────────────────────────
     const dbaType     = document.getElementById('dba-type').value;
     const dbaPriority = document.getElementById('dba-priority').value;
     const dbaDb       = document.getElementById('dba-database').value.trim();
     DbaHistory.add({
-      id:          ticketId,
-      title:       adoTitle,
-      type:        dbaType,
-      priority:    dbaPriority,
+      id:           ticketId,
+      title:        adoTitle,
+      type:         dbaType,
+      priority:     dbaPriority,
       environments: getDbaEnvs(),
-      database:    dbaDb || null,
-      state:       'New',
-      url:         ticketUrl,
-      createdAt:   new Date().toISOString(),
+      database:     dbaDb || null,
+      state:        'New',
+      url:          ticketUrl,
+      createdAt:    new Date().toISOString(),
+      attachmentCount: linked.length,
     });
-    // Refresh DBA history view if currently open
     if (typeof renderDbaHistory === 'function') renderDbaHistory();
 
-    // Show success screen
+    // ── Step 5: Show success screen ───────────────────────────────────
     dbaShowStep(3);
+    const attachNote = linked.length
+      ? ` · ${linked.length} attachment${linked.length > 1 ? 's' : ''} uploaded`
+      : '';
     document.getElementById('dba-success-sub').textContent =
-      `Ticket #${ticketId} created and assigned to Vijay Kumar Darshanala (DBA Team)`;
+      `Ticket #${ticketId} created and assigned to Vijay Kumar Darshanala (DBA Team)${attachNote}`;
     document.getElementById('dba-success-line1').textContent = adoTitle;
     document.getElementById('dba-success-line2').textContent =
       `Area: TaxProf\\surePrep\\components\\Database\\surePrep-dba`;
     document.getElementById('dba-view-ado').href = ticketUrl;
 
-    toast(`DBA Ticket #${ticketId} created successfully in ADO`, 'success');
+    // Clean up object URLs now we're done
+    dbaAttachments.forEach(a => { try { URL.revokeObjectURL(a.previewUrl); } catch(_){} });
+    dbaAttachments = [];
+
+    toast(`DBA Ticket #${ticketId} created${attachNote}`, 'success');
 
   } catch (err) {
     msg.style.color = 'var(--bad)';
@@ -4785,6 +5823,118 @@ document.getElementById('dba-create-another')?.addEventListener('click', () => {
   dbaShowStep(1);
 });
 document.getElementById('dba-success-done')?.addEventListener('click', dbaClose);
+
+// ══════════════════════════════════════════════════════════════════════
+//  DBA ATTACHMENTS — same pattern as Bug reporter
+//  State lives here (outside dbaCreateTicket) so drag-drop, paste, and
+//  file-browse all push into the same array.
+// ══════════════════════════════════════════════════════════════════════
+let dbaAttachments = [];   // [{ blob, name, type, size, previewUrl }]
+
+function renderDbaAttachments() {
+  const list = document.getElementById('dba-attach-list');
+  if (!list) return;
+  if (!dbaAttachments.length) { list.innerHTML = ''; return; }
+  list.innerHTML = dbaAttachments.map((a, i) => {
+    const isImg   = a.type.startsWith('image/');
+    const sizeLabel = a.size > 1024 * 1024
+      ? `${(a.size / 1024 / 1024).toFixed(1)} MB`
+      : `${(a.size / 1024).toFixed(0)} KB`;
+    return `<div class="attach-item">
+      ${isImg
+        ? `<img src="${a.previewUrl}" alt="${a.name}" />`
+        : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:28px">📄</div>`}
+      <button class="x" data-idx="${i}" title="Remove">×</button>
+      <div class="meta">
+        <span>${a.name.length > 16 ? a.name.slice(0, 14) + '..' : a.name}</span>
+        <span>${sizeLabel}</span>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.x').forEach(btn => btn.addEventListener('click', () => {
+    const i = +btn.dataset.idx;
+    URL.revokeObjectURL(dbaAttachments[i].previewUrl);
+    dbaAttachments.splice(i, 1);
+    renderDbaAttachments();
+  }));
+}
+
+function dbaAddFile(file) {
+  if (!file) return;
+  const allowed = /^image\/|\.sql$|\.txt$|\.log$|\.csv$|\.pdf$/i;
+  if (!allowed.test(file.type || file.name)) {
+    toast(`Skipped "${file.name}" — unsupported file type`, 'error');
+    return;
+  }
+  const previewUrl = URL.createObjectURL(file);
+  dbaAttachments.push({
+    blob: file,
+    name: file.name || `attachment-${Date.now()}`,
+    type: file.type || 'application/octet-stream',
+    size: file.size,
+    previewUrl,
+  });
+  renderDbaAttachments();
+}
+
+// Upload one file to ADO and return the attachment URL
+async function dbaUploadAttachment(file) {
+  const url = `https://dev.azure.com/${CFG.org}/${CFG.project}/_apis/wit/attachments`
+    + `?fileName=${encodeURIComponent(file.name)}&api-version=7.1`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': authHeader(),
+      'Accept': 'application/json',
+      'Content-Type': 'application/octet-stream',
+      'X-TFS-FedAuthRedirect': 'Suppress',
+    },
+    body: file,
+  });
+  if (!r.ok) {
+    const b = await r.json().catch(() => ({}));
+    throw new Error(b.message || `Upload failed (${r.status})`);
+  }
+  return r.json();  // { id, url }
+}
+
+// ── Drag-drop wiring ──────────────────────────────────────────────────
+const dbaDrop = document.getElementById('dba-drop');
+if (dbaDrop) {
+  ['dragenter', 'dragover'].forEach(ev => dbaDrop.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    dbaDrop.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach(ev => dbaDrop.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    dbaDrop.classList.remove('dragover');
+  }));
+  dbaDrop.addEventListener('drop', e => {
+    [...(e.dataTransfer?.files || [])].forEach(f => dbaAddFile(f));
+  });
+}
+
+// ── File browse ───────────────────────────────────────────────────────
+document.getElementById('dba-file')?.addEventListener('change', e => {
+  [...e.target.files].forEach(f => dbaAddFile(f));
+  e.target.value = '';
+});
+
+// ── Ctrl+V paste — only when DBA modal is open ────────────────────────
+document.addEventListener('paste', e => {
+  if (!document.getElementById('dba-modal')?.classList.contains('open')) return;
+  const items = [...(e.clipboardData?.items || [])];
+  for (const item of items) {
+    if (item.kind === 'file' && /^image\//.test(item.type)) {
+      const f = item.getAsFile();
+      if (f) {
+        const named = new File([f], `screenshot-${Date.now()}.png`, { type: f.type });
+        dbaAddFile(named);
+        e.preventDefault();
+      }
+    }
+  }
+});
 </script>
 </body>
 </html>
